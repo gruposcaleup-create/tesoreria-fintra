@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Bank Module ---
+
+model BankAccount {
+  id                  String        @id @default(uuid())
+  banco               String
+  alias               String
+  numeroCuenta        String        @unique
+  clabe               String        @unique
+  saldo               Decimal       @default(0.0)
+  saldoDisponible     Decimal       @default(0.0)
+  tipo                String
+  fuenteFinanciamiento Fuente       @relation(fields: [fuenteFinanciamientoId], references: [id])
+  fuenteFinanciamientoId String
+  estatus             String        @default("Activa") // Activa, Bloqueada
+  moneda              String        @default("MXN")
+  
+  transactions        Transaction[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model Transaction {
+  id               String          @id @default(uuid())
+  account          BankAccount     @relation(fields: [accountId], references: [id])
+  accountId        String
+  fecha            DateTime
+  concepto         String
+  referencia       String?
+  monto            Decimal
+  tipo             String          // Ingreso, Egreso
+  estatus          String          // Conciliado, En Tránsito, Cancelado
+  
+  // Link to Accounting (Optional)
+  egresoContable   EgresoContable? @relation(fields: [egresoContableId], references: [id])
+  egresoContableId String?         
+  
+  createdAt        DateTime        @default(now())
+}
+
+// --- Budget & Accounting Module ---
+
+model PresupuestoItem {
+  id                   String            @id @default(uuid())
+  codigo               String            @unique // e.g., "1000", "1100"
+  descripcion          String
+  nivel                String            // Capitulo, Concepto, Partida
+  
+  // Self-relation for Hierarchy
+  parent               PresupuestoItem?  @relation("BudgetHierarchy", fields: [parentId], references: [id])
+  parentId             String?
+  subcuentas           PresupuestoItem[] @relation("BudgetHierarchy")
+  
+  fuenteFinanciamiento String
+  aprobado             Decimal           @default(0.0)
+  modificado           Decimal           @default(0.0)
+  devengado            Decimal           @default(0.0)
+  pagado               Decimal           @default(0.0)
+  
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+}
+
+model EgresoContable {
+  id                  String        @id @default(uuid())
+  polizaNumero        String        // Generated ID like "P-2024-001"
+  fecha               DateTime
+  cog                 String        // Link to PresupuestoItem.codigo mostly logical
+  cuentaContable      String
+  pagueseA            String
+  monto               Decimal
+  concepto            String
+  origenBancario      Boolean       @default(false)
+  
+  // Link back to bank (Optional, can be 1-to-many depending on business logic, keeping simple 1-1 for now based on prompt)
+  bankTransaction     Transaction[]
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model Fuente {
+  id        String        @id @default(uuid())
+  acronimo  String
+  nombre    String
+  origen    String        // Federal, Estatal, Propio
+  
+  cuentas   BankAccount[]
+  
+  createdAt DateTime      @default(now())
+}
