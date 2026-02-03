@@ -415,13 +415,14 @@ export default function TreasuryAccounts() {
 
             {/* --- MODAL NUEVA/EDITAR CUENTA (STICKY FOOTER FIX + COMPACT) --- */}
             <Dialog open={isNewAccountOpen} onOpenChange={(open) => { setIsNewAccountOpen(open); if (!open) resetForm(); }}>
-                <DialogContent className="sm:max-w-[750px] w-[95vw] h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+                <DialogContent className="sm:max-w-[95vw] w-[95vw] h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
                     <DialogHeader className="px-6 py-4 border-b shrink-0 bg-background">
                         <DialogTitle className="text-lg">{editingAccountId ? "Editar Cuenta Bancaria" : "Nueva Cuenta Bancaria"}</DialogTitle>
                         <DialogDescription>{editingAccountId ? "Modificación de datos del contrato." : "Alta de contrato para operación."}</DialogDescription>
                     </DialogHeader>
 
-                    <ScrollArea className="flex-1 px-6 py-6 bg-muted/20">
+                    {/* REPLACED ScrollArea WITH DIV FOR ROBUST FOOTER VISIBILITY */}
+                    <div className="flex-1 px-6 py-6 bg-muted/20 overflow-y-auto">
                         <div className="space-y-6">
 
                             {/* 1. Datos Generales */}
@@ -443,8 +444,8 @@ export default function TreasuryAccounts() {
                                     <CreditCard className="w-3 h-3" /> Identificación
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5"><Label className="text-xs">Cuenta (10-12 dígitos)</Label><Input value={newNumCuenta} onChange={(e) => setNewNumCuenta(e.target.value)} className="h-8 text-xs font-mono bg-background" placeholder="0000000000" /></div>
-                                    <div className="space-y-1.5"><Label className="text-xs">CLABE (18 dígitos)</Label><Input value={newClabe} onChange={(e) => setNewClabe(e.target.value)} className="h-8 text-xs font-mono bg-background" placeholder="000000000000000000" /></div>
+                                    <div className="space-y-1.5"><Label className="text-xs">Cuenta (10-12 dígitos)</Label><Input value={newNumCuenta} onChange={(e) => setNewNumCuenta(e.target.value.replace(/[^0-9]/g, ''))} className="h-8 text-xs font-mono bg-background" placeholder="0000000000" /></div>
+                                    <div className="space-y-1.5"><Label className="text-xs">CLABE (18 dígitos)</Label><Input value={newClabe} onChange={(e) => setNewClabe(e.target.value.replace(/[^0-9]/g, ''))} className="h-8 text-xs font-mono bg-background" placeholder="000000000000000000" /></div>
                                     <div className="space-y-1.5"><Label className="text-xs">Moneda</Label><Select onValueChange={(val: "MXN" | "USD") => setNewMoneda(val)} defaultValue={newMoneda} value={newMoneda}><SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MXN">Pesos (MXN)</SelectItem><SelectItem value="USD">Dólares (USD)</SelectItem></SelectContent></Select></div>
                                     <div className="space-y-1.5"><Label className="text-xs">Régimen</Label><Select onValueChange={(val: "Mancomunada" | "Indistinta") => setNewRegimen(val)} defaultValue={newRegimen} value={newRegimen}><SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Mancomunada">Mancomunada</SelectItem><SelectItem value="Indistinta">Indistinta</SelectItem></SelectContent></Select></div>
                                 </div>
@@ -459,7 +460,7 @@ export default function TreasuryAccounts() {
                                     <div className="space-y-1.5"><Label className="text-xs">Sucursal</Label><Input value={newSucursal} onChange={(e) => setNewSucursal(e.target.value)} className="h-8 text-xs bg-background" placeholder="Nombre de sucursal" /></div>
                                     <div className="space-y-1.5"><Label className="text-xs">Ejecutivo</Label><Input value={newEjecutivo} onChange={(e) => setNewEjecutivo(e.target.value)} className="h-8 text-xs bg-background" placeholder="Nombre completo" /></div>
                                     <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Dirección</Label><Input value={newDireccion} onChange={(e) => setNewDireccion(e.target.value)} className="h-8 text-xs bg-background" placeholder="Dirección completa de la sucursal" /></div>
-                                    <div className="space-y-1.5"><Label className="text-xs">Teléfono</Label><Input value={newTelefono} onChange={(e) => setNewTelefono(e.target.value)} className="h-8 text-xs bg-background" placeholder="(XXX) XXX-XXXX" /></div>
+                                    <div className="space-y-1.5"><Label className="text-xs">Teléfono</Label><Input value={newTelefono} onChange={(e) => setNewTelefono(e.target.value.replace(/[^0-9]/g, ''))} className="h-8 text-xs bg-background" placeholder="(XXX) XXX-XXXX" /></div>
                                 </div>
                             </div>
 
@@ -487,7 +488,7 @@ export default function TreasuryAccounts() {
                             </div>
 
                         </div>
-                    </ScrollArea>
+                    </div>
 
                     <DialogFooter className="px-6 py-4 border-t border-border bg-background shrink-0">
                         <Button variant="outline" onClick={() => setIsNewAccountOpen(false)} className="text-xs h-9">Cancelar</Button>

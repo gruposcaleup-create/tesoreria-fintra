@@ -56,6 +56,62 @@ export type IngresoContable = {
     estado: "Completado" | "Pendiente" | "Procesando"
     fecha: string
     cuentaBancaria?: string
+    cri?: string;
+    cuentaContable?: string;
+    reporteAdicional?: {
+        tipo: "none" | "predial" | "otros"
+        nombre: string
+        rfc: string
+        domicilio: string
+        conceptoDetalle: string
+        aplicacion: string
+        importeCorriente: string | number
+        importeAdicional: string | number
+        sumaTotal: string
+        totalLetra: string
+        fechaEmision: Date | string
+        folioRecibo: string
+
+        // Budget Classification (New)
+        capitulo?: string
+        partidaGenerica?: string
+        cri?: string
+        cuentaContable?: string
+
+        // Campos específicos para Predial
+        folio?: string
+        fechaCobro?: string
+        numeroCajero?: string
+
+        // Clave Catastral
+        zona?: string
+        municipio?: string
+        localidad?: string
+        region?: string
+        manzana?: string
+        lote?: string
+        nivel?: string
+        departamento?: string
+        digitoVerificador?: string
+
+        // Info Contribuyente y Predio
+        nombreContribuyente?: string
+        tipoPredio?: string
+        periodo?: string
+        ubicacionPredio?: string
+        colonia?: string
+
+        // Liquidación
+        baseImpuesto?: number | string
+        impuesto?: number | string
+        // adicional ya existe (importeAdicional)
+        recargos?: number | string
+        multa?: number | string
+        honorarios?: number | string
+        pagarConDescuento?: number | string
+        totalPagar?: string
+        // total a pagar es sumaTotal o totalPagar
+    }
 }
 
 export type EgresoContable = {
@@ -71,6 +127,10 @@ export type EgresoContable = {
     fecha: string
     tipo: "Manual" | "Bancario"
     estatus: "Pendiente" | "Pagado" | "Cancelado"
+    folioOrden?: number
+    departamento?: string
+    area?: string
+    poliza?: string
 }
 
 export type Fuente = {
@@ -86,8 +146,15 @@ export type Firmante = {
     puesto: string
 }
 
+export type PaymentOrderSigner = {
+    autoriza: string
+    comisionHacienda1: string
+    comisionHacienda2: string
+    doyFe: string
+}
+
 // --- TIPOS PRESUPUESTALES ---
-export type NivelCOG = "Capitulo" | "Concepto" | "Partida";
+export type NivelCOG = "Capitulo" | "Concepto" | "Partida" | "Partida Generica";
 
 export interface PresupuestoItem {
     codigo: string;
@@ -100,75 +167,47 @@ export interface PresupuestoItem {
     pagado: number;
     subcuentas?: PresupuestoItem[];
     isExpanded?: boolean;
+    // New fields
+    cuenta_registro?: string;
+    cri?: string;
+    cog?: string;
+    // Monthly breakdown
+    enero?: number;
+    febrero?: number;
+    marzo?: number;
+    abril?: number;
+    mayo?: number;
+    junio?: number;
+    julio?: number;
+    agosto?: number;
+    septiembre?: number;
+    octubre?: number;
+    noviembre?: number;
+    diciembre?: number;
+    // Monthly Accounting (Contable)
+    enero_contable?: number;
+    febrero_contable?: number;
+    marzo_contable?: number;
+    abril_contable?: number;
+    mayo_contable?: number;
+    junio_contable?: number;
+    julio_contable?: number;
+    agosto_contable?: number;
+    septiembre_contable?: number;
+    octubre_contable?: number;
+    noviembre_contable?: number;
+    diciembre_contable?: number;
 }
 
 // --- DATA PRESUPUESTO INICIAL ---
-export const INITIAL_PRESUPUESTO: PresupuestoItem[] = [
-    {
-        codigo: "1000",
-        descripcion: "Servicios personales",
-        nivel: "Capitulo",
-        fuenteFinanciamiento: "Mixto",
-        aprobado: 0.0,
-        modificado: 0.0,
-        devengado: 0.0,
-        pagado: 0.0,
-        isExpanded: false,
-        subcuentas: [
-            { codigo: "1100", descripcion: "Remuneraciones al Personal de Carácter Permanente", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1200", descripcion: "Remuneraciones al personal de carácter transitorio", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1300", descripcion: "Remuneraciones adicionales y especiales", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1400", descripcion: "Seguridad social", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1500", descripcion: "Otras prestaciones sociales y económicas", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1600", descripcion: "Previsiones", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "1700", descripcion: "Pago de estímulos a servidores públicos", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false }
-        ]
-    },
-    {
-        codigo: "2000",
-        descripcion: "Materiales y suministros",
-        nivel: "Capitulo",
-        fuenteFinanciamiento: "Mixto",
-        aprobado: 0.0,
-        modificado: 0.0,
-        devengado: 0.0,
-        pagado: 0.0,
-        isExpanded: false,
-        subcuentas: [
-            { codigo: "2100", descripcion: "Materiales de administración, emisión de documentos y artículos oficiales", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2200", descripcion: "Alimentos y utensilios", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2300", descripcion: "Materias primas y materiales de producción y comercialización", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2400", descripcion: "Materiales y artículos de construcción y de reparación", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2500", descripcion: "Productos químicos, farmacéuticos y de laboratorio", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2600", descripcion: "Combustibles, lubricantes y aditivos", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2700", descripcion: "Vestuario, blancos, prendas de protección y artículos deportivos", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2800", descripcion: "Materiales y suministros para seguridad", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "2900", descripcion: "Herramientas, refacciones y accesorios menores", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false }
-        ]
-    },
-    {
-        codigo: "3000",
-        descripcion: "Servicios generales",
-        nivel: "Capitulo",
-        fuenteFinanciamiento: "Mixto",
-        aprobado: 0.0,
-        modificado: 0.0,
-        devengado: 0.0,
-        pagado: 0.0,
-        isExpanded: false,
-        subcuentas: [
-            { codigo: "3100", descripcion: "Servicios básicos", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3200", descripcion: "Servicios de arrendamiento", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3300", descripcion: "Servicios Profesionales, Científicos y Técnicos y Otros Servicios", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3400", descripcion: "Servicios financieros, bancarios y comerciales", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3500", descripcion: "Servicios de instalación, reparación, mantenimiento y conservación", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3600", descripcion: "Servicios de comunicación social y publicidad", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3700", descripcion: "Servicios de traslado y viáticos", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3800", descripcion: "Servicios oficiales", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false },
-            { codigo: "3900", descripcion: "Otros servicios generales", nivel: "Concepto", fuenteFinanciamiento: "Mixto", aprobado: 0.0, modificado: 0.0, devengado: 0.0, pagado: 0.0, subcuentas: [], isExpanded: false }
-        ]
-    }
-];
+import { RAW_COG_DATA } from "./cog-raw-data";
+import { buildCOGTree } from "./cog-tree-builder";
+import { RAW_CRI_DATA } from "./cri-raw-data";
+import { buildCRITree } from "./cri-tree-builder";
+
+export const INITIAL_PRESUPUESTO: PresupuestoItem[] = [];
+const INITIAL_LEY_INGRESOS: PresupuestoItem[] = [];
+
 
 // --- DATOS MOCK INICIALES (Cuentas) ---
 const DATA_CUENTAS: BankAccount[] = [];
@@ -195,6 +234,36 @@ const INITIAL_ORIGENES: string[] = [
     "Otros"
 ]
 
+// --- DEPARTAMENTOS ---
+export type Departamento = {
+    id: string
+    nombre: string
+    areas: string[]
+}
+
+const INITIAL_DEPARTAMENTOS: Departamento[] = [
+    { id: "dept-1", nombre: "Presidencia municipal", areas: ["Despacho", "Secretaria Particular"] },
+    { id: "dept-2", nombre: "Sindicatura", areas: ["Jurídico", "Patrimonio"] },
+    { id: "dept-3", nombre: "Regiduria", areas: [] },
+    { id: "dept-4", nombre: "Secretaria del ayuntamiento", areas: ["Cabildo", "Archivo"] },
+    { id: "dept-5", nombre: "Tesoreria", areas: ["Ingresos", "Egresos", "Contabilidad"] },
+    { id: "dept-6", nombre: "Obras publicas", areas: ["Proyectos", "Supervisión"] },
+    { id: "dept-7", nombre: "Oficialia mayor", areas: ["Recursos Humanos", "Servicios Generales"] },
+    { id: "dept-8", nombre: "Seguridad publica", areas: ["Preventiva", "Tránsito"] },
+    { id: "dept-9", nombre: "Servicios publicos", areas: ["Limpiar", "Alumbrado"] },
+    { id: "dept-10", nombre: "DIF", areas: ["Asistencia Social", "Procuraduría"] },
+    { id: "dept-11", nombre: "Desarrollo social", areas: [] },
+    { id: "dept-12", nombre: "Desarrollo rural", areas: [] },
+    { id: "dept-13", nombre: "Proteccion civil", areas: [] },
+    { id: "dept-14", nombre: "Deporte", areas: [] },
+    { id: "dept-15", nombre: "Cultura", areas: [] },
+    { id: "dept-16", nombre: "Turismo", areas: [] },
+    { id: "dept-17", nombre: "Ecologia", areas: [] },
+    { id: "dept-18", nombre: "Instituto de la mujer", areas: [] },
+    { id: "dept-19", nombre: "Transparencia", areas: [] },
+    { id: "dept-20", nombre: "Contraloria", areas: ["Auditoría", "Quejas"] },
+]
+
 // --- CONTEXT ---
 interface TreasuryContextType {
     cuentas: BankAccount[];
@@ -217,7 +286,13 @@ interface TreasuryContextType {
     deleteOrigen: (origen: string) => void;
     // New (Presupuesto)
     presupuesto: PresupuestoItem[];
+    setPresupuesto: React.Dispatch<React.SetStateAction<PresupuestoItem[]>>;
     addPresupuestoItem: (item: PresupuestoItem, parentCode?: string) => void;
+    updateBudgetFromEgreso: (cog: string, monto: number, fecha: string) => void;
+
+    leyIngresos: PresupuestoItem[];
+    setLeyIngresos: React.Dispatch<React.SetStateAction<PresupuestoItem[]>>;
+    updateLeyIngresosFromIngreso: (cuentaContable: string, monto: number, fecha: string) => void;
 }
 
 const TreasuryContext = createContext<TreasuryContextType | undefined>(undefined);
@@ -229,7 +304,9 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     const [egresosContables, setEgresosContables] = useState<EgresoContable[]>(INITIAL_EGRESOS);
     const [fuentes, setFuentes] = useState<Fuente[]>(INITIAL_FUENTES);
     const [origenes, setOrigenes] = useState<string[]>(INITIAL_ORIGENES);
+    const [departamentos, setDepartamentos] = useState<Departamento[]>(INITIAL_DEPARTAMENTOS);
     const [presupuesto, setPresupuesto] = useState<PresupuestoItem[]>(INITIAL_PRESUPUESTO);
+    const [leyIngresos, setLeyIngresos] = useState<PresupuestoItem[]>(INITIAL_LEY_INGRESOS); // New state for Ley de Ingresos
     const [config, setConfig] = useState({ logoLeft: "", logoRight: "" });
     const [fiscalConfig, setFiscalConfig] = useState({
         nombreEnte: "",
@@ -239,7 +316,31 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         domicilio: ""
     });
 
+    // Performance: Load heavy data asynchronously
+    React.useEffect(() => {
+        // Use setTimeout to push this to the next tick, unblocking the main thread for initial render
+        setTimeout(() => {
+            const cogTree = buildCOGTree(RAW_COG_DATA);
+            setPresupuesto(prev => prev.length === 0 ? cogTree : prev);
+
+            const criTree = buildCRITree(RAW_CRI_DATA);
+            setLeyIngresos(prev => prev.length === 0 ? criTree : prev);
+        }, 0);
+    }, []);
+
     const [firmantes, setFirmantes] = useState<Firmante[]>([]);
+    const [paymentOrderSigners, setPaymentOrderSigners] = useState<PaymentOrderSigner>({
+        autoriza: "",
+        comisionHacienda1: "",
+        comisionHacienda2: "",
+        doyFe: ""
+    });
+    const [nextPaymentOrderFolio, setNextPaymentOrderFolio] = useState(1);
+
+    const incrementPaymentOrderFolio = () => {
+        setNextPaymentOrderFolio(prev => prev + 1);
+        addToLog("Folio Incrementado", `Folio de Orden de Pago actualizado a ${nextPaymentOrderFolio + 1}`, "update");
+    };
 
     const addFuente = (fuente: Fuente) => {
         setFuentes(prev => [...prev, fuente]);
@@ -259,6 +360,26 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     const deleteOrigen = (origen: string) => {
         setOrigenes(prev => prev.filter(o => o !== origen));
         addToLog("Fuente Eliminada", `Se eliminó la fuente ${origen}`, "delete");
+    }
+
+    const addDepartamento = (nombre: string, areas: string[] = []) => {
+        const newDept: Departamento = {
+            id: `dept-${Date.now()}`,
+            nombre,
+            areas
+        };
+        setDepartamentos(prev => [...prev, newDept]);
+        addToLog("Departamento Agregado", `Se agregó el departamento ${nombre}`, "create");
+    }
+
+    const updateDepartamento = (id: string, nombre: string) => {
+        setDepartamentos(prev => prev.map(d => d.id === id ? { ...d, nombre } : d));
+        addToLog("Departamento Actualizado", `Se actualizó el departamento ${nombre}`, "update");
+    }
+
+    const deleteDepartamento = (id: string) => {
+        setDepartamentos(prev => prev.filter(d => d.id !== id));
+        addToLog("Departamento Eliminado", `Se eliminó un departamento`, "delete");
     }
 
     // Recursive helper to add item to tree
@@ -288,7 +409,42 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
             setPresupuesto(prev => addItemToTree(prev, parentCode, item));
             addToLog("Presupuesto Actualizado", `Se agregó la Partida ${item.codigo} al Capítulo ${parentCode}`, "create");
         }
-    }
+    };
+
+    // Función para actualizar el presupuesto desde un egreso
+    const updateBudgetFromEgreso = (cog: string, monto: number, fecha: string) => {
+        const date = new Date(fecha);
+        const monthIndex = date.getMonth();
+        const monthKeys = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const contableKey = `${monthKeys[monthIndex]}_contable` as keyof PresupuestoItem;
+
+        const updateItemRecursive = (items: PresupuestoItem[]): PresupuestoItem[] => {
+            return items.map(item => {
+                if (item.cog === cog || item.codigo === cog) {
+                    return {
+                        ...item,
+                        [contableKey]: (item[contableKey] as number || 0) + monto,
+                        devengado: (item.devengado || 0) + monto
+                    };
+                }
+                if (item.subcuentas && item.subcuentas.length > 0) {
+                    const updatedSubcuentas = updateItemRecursive(item.subcuentas);
+                    const hasUpdate = updatedSubcuentas.some((sub, idx) => sub !== item.subcuentas![idx]);
+                    if (hasUpdate) {
+                        return {
+                            ...item,
+                            subcuentas: updatedSubcuentas,
+                            [contableKey]: (item[contableKey] as number || 0) + monto,
+                            devengado: (item.devengado || 0) + monto
+                        };
+                    }
+                }
+                return item;
+            });
+        };
+
+        setPresupuesto(prev => updateItemRecursive(prev));
+    };
 
     const addToLog = (action: string, details: string, type: LogEntry["type"] = "update") => {
         const newEntry: LogEntry = {
@@ -393,20 +549,70 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Función para actualizar la ley de ingresos desde un ingreso
+    const updateLeyIngresosFromIngreso = (cuentaContable: string, monto: number, fecha: string) => {
+        const date = new Date(fecha);
+        const monthIndex = date.getMonth();
+        const monthKeys = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const contableKey = `${monthKeys[monthIndex]}_contable` as keyof PresupuestoItem;
+
+        const updateItemRecursive = (items: PresupuestoItem[]): PresupuestoItem[] => {
+            return items.map(item => {
+                if (item.codigo === cuentaContable) {
+                    return {
+                        ...item,
+                        [contableKey]: (item[contableKey] as number || 0) + monto,
+                        devengado: (item.devengado || 0) + monto
+                    };
+                }
+                if (item.subcuentas && item.subcuentas.length > 0) {
+                    const updatedSubcuentas = updateItemRecursive(item.subcuentas);
+                    const hasUpdate = updatedSubcuentas.some((sub, idx) => sub !== item.subcuentas![idx]);
+                    if (hasUpdate) {
+                        return {
+                            ...item,
+                            subcuentas: updatedSubcuentas,
+                            [contableKey]: (item[contableKey] as number || 0) + monto,
+                            devengado: (item.devengado || 0) + monto
+                        };
+                    }
+                }
+                return item;
+            });
+        };
+
+        setLeyIngresos(prev => updateItemRecursive(prev));
+    };
+
+    // Memoize the context value to prevent unnecessary re-renders in consumers
+    const contextValue = React.useMemo(() => ({
+        cuentas, setCuentas,
+        systemLog, setSystemLog, addToLog,
+        ingresosContables, setIngresosContables,
+        egresosContables, setEgresosContables,
+        fuentes, addFuente, deleteFuente,
+        origenes, addOrigen, deleteOrigen,
+        departamentos, addDepartamento, updateDepartamento, deleteDepartamento,
+        presupuesto,
+        setPresupuesto,
+        addPresupuestoItem,
+        updateBudgetFromEgreso,
+        leyIngresos,
+        setLeyIngresos,
+        updateLeyIngresosFromIngreso,
+        config, setConfig,
+        fiscalConfig, setFiscalConfig,
+        firmantes, setFirmantes,
+        paymentOrderSigners, setPaymentOrderSigners,
+        approveTransaction, rejectTransaction,
+        nextPaymentOrderFolio, incrementPaymentOrderFolio
+    }), [
+        cuentas, systemLog, ingresosContables, egresosContables, fuentes, origenes, departamentos,
+        presupuesto, leyIngresos, config, fiscalConfig, firmantes, paymentOrderSigners, nextPaymentOrderFolio
+    ]);
+
     return (
-        <TreasuryContext.Provider value={{
-            cuentas, setCuentas,
-            systemLog, setSystemLog, addToLog,
-            ingresosContables, setIngresosContables,
-            egresosContables, setEgresosContables,
-            fuentes, addFuente, deleteFuente,
-            origenes, addOrigen, deleteOrigen,
-            presupuesto, addPresupuestoItem,
-            config, setConfig,
-            fiscalConfig, setFiscalConfig,
-            firmantes, setFirmantes,
-            approveTransaction, rejectTransaction
-        }}>
+        <TreasuryContext.Provider value={contextValue}>
             {children}
         </TreasuryContext.Provider>
     );
@@ -434,6 +640,11 @@ interface TreasuryContextType {
     origenes: string[];
     addOrigen: (origen: string) => void;
     deleteOrigen: (origen: string) => void;
+    // New (Departamentos)
+    departamentos: Departamento[];
+    addDepartamento: (nombre: string, areas?: string[]) => void;
+    updateDepartamento: (id: string, nombre: string, areas: string[]) => void;
+    deleteDepartamento: (id: string) => void;
     // New (Presupuesto)
     presupuesto: PresupuestoItem[];
     addPresupuestoItem: (item: PresupuestoItem, parentCode?: string) => void;
@@ -446,6 +657,13 @@ interface TreasuryContextType {
 
     firmantes: Firmante[];
     setFirmantes: React.Dispatch<React.SetStateAction<Firmante[]>>;
+
+    paymentOrderSigners: PaymentOrderSigner;
+    setPaymentOrderSigners: React.Dispatch<React.SetStateAction<PaymentOrderSigner>>;
+
+    // New (Payment Order Folio)
+    nextPaymentOrderFolio: number;
+    incrementPaymentOrderFolio: () => void;
 }
 
 export function useTreasury() {

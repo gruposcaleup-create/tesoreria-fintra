@@ -72,8 +72,10 @@ const baseData = {
       icon: IconDatabase,
       items: [
         { title: "Clasificador (COG)", url: "/catalogos/partidas" },
+        { title: "Clasificador (CRI)", url: "/catalogos/cri" },
         { title: "Fuentes y Fondos", url: "/catalogos/fuentes" },
         { title: "Programas Sociales", url: "/catalogos/programas" },
+        { title: "Departamentos", url: "/catalogos/departamentos" },
       ],
     },
     // --------------------------
@@ -94,6 +96,8 @@ const baseData = {
   ],
   documents: [
     { name: "Presupuesto", url: "/presupuesto", icon: IconListTree },
+    { name: "Ley de Ingresos", url: "/presupuesto/ley-ingresos", icon: IconCoins },
+    { name: "Presupuesto de Egresos", url: "/presupuesto/presupuesto-egresos", icon: IconCoins },
     { name: "Proveedores", url: "/proveedores", icon: IconReport },
   ],
 }

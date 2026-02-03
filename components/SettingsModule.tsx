@@ -26,12 +26,30 @@ export default function SettingsModule() {
     const [is2FAEnabled, setIs2FAEnabled] = useState(false)
     const { setTheme } = useTheme()
     const { toast } = useToast()
-    const { config, setConfig, addToLog, fiscalConfig, setFiscalConfig, firmantes, setFirmantes } = useTreasury()
+    const { config, setConfig, addToLog, fiscalConfig, setFiscalConfig, firmantes, setFirmantes, paymentOrderSigners, setPaymentOrderSigners } = useTreasury()
+
+    // Estado local para firmantes de póliza de pago
+    const [localPaymentOrderSigners, setLocalPaymentOrderSigners] = useState(paymentOrderSigners)
+
+    // Sincronizar estado local cuando cambie el contexto
+    React.useEffect(() => {
+        setLocalPaymentOrderSigners(paymentOrderSigners)
+    }, [paymentOrderSigners])
 
     // Handlers for Logos
     const handleLogoChange = (side: "left" | "right", value: string) => {
         setConfig(prev => ({ ...prev, [side === "left" ? "logoLeft" : "logoRight"]: value }));
     };
+
+    const handleSavePaymentOrderSigners = () => {
+        setPaymentOrderSigners(localPaymentOrderSigners)
+        addToLog("Configuración Actualizada", "Se actualizaron los firmantes de póliza de pago", "update")
+        toast({
+            title: "Cambios Guardados Exitosamente",
+            description: "Los firmantes de póliza se han actualizado correctamente.",
+            duration: 3000
+        })
+    }
 
     const removeSigner = (id: string) => {
         setFirmantes(prev => prev.filter(s => s.id !== id));
@@ -129,7 +147,27 @@ export default function SettingsModule() {
                                                 onValueChange={(val) => setFiscalConfig(prev => ({ ...prev, regimen: val }))}
                                             >
                                                 <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent><SelectItem value="603">603 - Personas Morales con Fines no Lucrativos</SelectItem></SelectContent>
+                                                <SelectContent>
+                                                    <SelectItem value="601">601 - General de Ley Personas Morales</SelectItem>
+                                                    <SelectItem value="603">603 - Personas Morales con Fines no Lucrativos</SelectItem>
+                                                    <SelectItem value="605">605 - Sueldos y Salarios e Ingresos Asimilados a Salarios</SelectItem>
+                                                    <SelectItem value="606">606 - Arrendamiento</SelectItem>
+                                                    <SelectItem value="607">607 - Régimen de Enajenación o Adquisición de Bienes</SelectItem>
+                                                    <SelectItem value="608">608 - Demás ingresos</SelectItem>
+                                                    <SelectItem value="610">610 - Residentes en el Extranjero sin Establecimiento Permanente en México</SelectItem>
+                                                    <SelectItem value="611">611 - Ingresos por Dividendos (socios y accionistas)</SelectItem>
+                                                    <SelectItem value="612">612 - Personas Físicas con Actividades Empresariales y Profesionales</SelectItem>
+                                                    <SelectItem value="614">614 - Ingresos por intereses</SelectItem>
+                                                    <SelectItem value="615">615 - Régimen de los ingresos por obtención de premios</SelectItem>
+                                                    <SelectItem value="616">616 - Sin obligaciones fiscales</SelectItem>
+                                                    <SelectItem value="620">620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos</SelectItem>
+                                                    <SelectItem value="621">621 - Incorporación Fiscal</SelectItem>
+                                                    <SelectItem value="622">622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras</SelectItem>
+                                                    <SelectItem value="623">623 - Opcional para Grupos de Sociedades</SelectItem>
+                                                    <SelectItem value="624">624 - Coordinados</SelectItem>
+                                                    <SelectItem value="625">625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</SelectItem>
+                                                    <SelectItem value="626">626 - Régimen Simplificado de Confianza</SelectItem>
+                                                </SelectContent>
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
@@ -266,6 +304,61 @@ export default function SettingsModule() {
                                 </TableBody>
                             </Table>
                         </CardContent>
+                    </Card>
+
+                    {/* FIRMANTES DE POLIZA DE PAGO */}
+                    <Card>
+                        <CardHeader>
+                            <div>
+                                <CardTitle>Firmantes de Póliza de Pago</CardTitle>
+                                <CardDescription>Configura los nombres que aparecerán en las órdenes de pago.</CardDescription>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="autoriza">Autoriza</Label>
+                                <Input
+                                    id="autoriza"
+                                    value={localPaymentOrderSigners.autoriza}
+                                    onChange={(e) => setLocalPaymentOrderSigners(prev => ({ ...prev, autoriza: e.target.value }))}
+                                    placeholder="Nombre del Presidente Municipal"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Comisión de Hacienda Municipal</Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input
+                                        value={localPaymentOrderSigners.comisionHacienda1}
+                                        onChange={(e) => setLocalPaymentOrderSigners(prev => ({ ...prev, comisionHacienda1: e.target.value }))}
+                                        placeholder="Síndico (a) Municipal"
+                                    />
+                                    <Input
+                                        value={localPaymentOrderSigners.comisionHacienda2}
+                                        onChange={(e) => setLocalPaymentOrderSigners(prev => ({ ...prev, comisionHacienda2: e.target.value }))}
+                                        placeholder="Regidor (a) Municipal"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="doyFe">Doy Fé</Label>
+                                <Input
+                                    id="doyFe"
+                                    value={localPaymentOrderSigners.doyFe}
+                                    onChange={(e) => setLocalPaymentOrderSigners(prev => ({ ...prev, doyFe: e.target.value }))}
+                                    placeholder="Nombre del Secretario del Ayuntamiento"
+                                />
+                            </div>
+                        </CardContent>
+                        <CardFooter className="border-t px-6 py-4 flex justify-end">
+                            <Button
+                                className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-100"
+                                onClick={handleSavePaymentOrderSigners}
+                            >
+                                <Save className="w-4 h-4 mr-2" /> Guardar Cambios
+                            </Button>
+                        </CardFooter>
                     </Card>
                 </TabsContent>
                 <TabsContent value="usuarios" className="space-y-6">

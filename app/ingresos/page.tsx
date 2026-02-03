@@ -10,13 +10,26 @@ import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/data-table"
 import { BankCards } from "@/components/bank-cards"
 import { useTreasury, IngresoContable } from "@/components/providers/treasury-context"
+import { useRouter } from "next/navigation"
+import { IncomeReportDialog } from "@/components/income-report-dialog"
 
 import {
   Check,
-  X
+  X,
+  MoreHorizontal,
+  FileText,
+  Printer
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +53,11 @@ import {
 
 
 export default function IngresosPage() {
-  const { ingresosContables, setIngresosContables, approveTransaction, rejectTransaction } = useTreasury();
+  const { ingresosContables, setIngresosContables, approveTransaction, rejectTransaction, updateLeyIngresosFromIngreso } = useTreasury();
   const [confirmAction, setConfirmAction] = React.useState<{ id: string, type: "Ingreso" | "Egreso", action: "approve" | "reject" } | null>(null);
+  const [selectedIngresoForReport, setSelectedIngresoForReport] = React.useState<IngresoContable | null>(null);
+  const [editingIngreso, setEditingIngreso] = React.useState<IngresoContable | null>(null);
+  const router = useRouter();
 
   const handleActionClick = (id: string, type: "Ingreso" | "Egreso", action: "approve" | "reject") => {
     setConfirmAction({ id, type, action });
@@ -58,7 +74,7 @@ export default function IngresosPage() {
   }
 
   // Función que recibe los datos del Modal y actualiza la tabla (global)
-  const handleAddIngreso = (newIngreso: { concepto: string, fuente: string, monto: number, fecha: string, cuentaBancaria?: string }) => {
+  const handleAddIngreso = (newIngreso: { concepto: string, fuente: string, monto: number, fecha: string, cuentaBancaria?: string, cri?: string, cuentaContable?: string, reporteAdicional?: any }) => {
     const newItem: IngresoContable = {
       id: Math.random().toString(36).substr(2, 9), // ID temporal aleatorio
       ...newIngreso,
@@ -67,6 +83,11 @@ export default function IngresosPage() {
 
     // Agregamos el nuevo item al principio de la lista global
     setIngresosContables([newItem, ...ingresosContables])
+
+    // Actualizar la Ley de Ingresos si tenemos cuenta contable
+    if (newIngreso.cuentaContable) {
+      updateLeyIngresosFromIngreso(newIngreso.cuentaContable, newIngreso.monto, newIngreso.fecha)
+    }
   }
 
   const columns = React.useMemo<ColumnDef<IngresoContable>[]>(() => [
@@ -145,7 +166,54 @@ export default function IngresosPage() {
         return <div className="text-right font-medium text-green-600">{formatted}</div>
       },
     },
-  ], [ingresosContables]);
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const ingreso = row.original;
+
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Abrir menú</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setEditingIngreso(ingreso)}
+                className="cursor-pointer text-blue-600 focus:bg-blue-50"
+              >
+                <FileText className="mr-2 h-4 w-4" /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const highlightValue = ingreso.cuentaContable || ingreso.cri || '';
+                  if (highlightValue) {
+                    router.push(`/presupuesto/ley-ingresos?highlight=${highlightValue}`)
+                  }
+                }}
+                className="cursor-pointer text-blue-700 focus:bg-blue-50"
+              >
+                <FileText className="mr-2 h-4 w-4" /> Ver en Ley de Ingresos
+              </DropdownMenuItem>
+              {ingreso.reporteAdicional && (
+                <DropdownMenuItem
+                  onClick={() => setSelectedIngresoForReport(ingreso)}
+                  className="cursor-pointer text-slate-700 focus:bg-slate-50"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  {ingreso.reporteAdicional.tipo === 'predial' ? "Ver reporte predial" : "Ver reporte de ingreso"}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      }
+    }
+  ], [ingresosContables, router]);
 
   return (
     <SidebarProvider
@@ -215,7 +283,34 @@ export default function IngresosPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </SidebarInset>
-    </SidebarProvider>
+
+        <IncomeReportDialog
+          open={!!selectedIngresoForReport}
+          onOpenChange={(open) => !open && setSelectedIngresoForReport(null)}
+          ingreso={selectedIngresoForReport}
+        />
+
+        {/* Dialogo de Edición */}
+        {editingIngreso && (
+          <AddIngresoDialog
+            open={!!editingIngreso}
+            onOpenChange={(open) => !open && setEditingIngreso(null)}
+            initialData={editingIngreso}
+            onSave={(updatedData) => {
+              const updatedIngreso: IngresoContable = {
+                ...editingIngreso,
+                ...(updatedData as any),
+                // Mantener estado original o resetear? Generalmente al editar se mantiene, salvo que cambie algo critico.
+                // Si el monto cambia, la validación debería re-hacerse?
+                // Por simplicidad mantenemos el ID y actualizamos datos.
+              }
+
+              setIngresosContables(prev => prev.map(item => item.id === editingIngreso.id ? updatedIngreso : item))
+              setEditingIngreso(null)
+            }}
+          />
+        )}
+      </SidebarInset >
+    </SidebarProvider >
   )
 }

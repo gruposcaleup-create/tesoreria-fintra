@@ -11,6 +11,7 @@ import { BankCards } from "@/components/bank-cards"
 import { AddEgresoDialog } from "@/components/add-egreso-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -107,7 +108,20 @@ const convertirNumeroALetras = (monto: number): string => {
 };
 
 export default function EgresosPage() {
-  const { egresosContables, setEgresosContables, presupuesto, approveTransaction, rejectTransaction } = useTreasury();
+  const {
+    egresosContables,
+    setEgresosContables,
+    presupuesto,
+    approveTransaction,
+    rejectTransaction,
+    config,
+    firmantes,
+    paymentOrderSigners,
+    nextPaymentOrderFolio,
+    incrementPaymentOrderFolio
+  } = useTreasury();
+
+  const router = useRouter();
 
   // Estados para la Orden de Pago
   const [selectedEgreso, setSelectedEgreso] = useState<EgresoContable | null>(null)
@@ -128,17 +142,26 @@ export default function EgresosPage() {
     setConfirmAction(null);
   }
 
-  const handleAddEgreso = (newEgreso: Omit<EgresoContable, "id">) => {
-    const newItem: EgresoContable = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newEgreso,
-      estatus: "Pendiente",
-    }
-    setEgresosContables([newItem, ...egresosContables])
-  }
-
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleOpenOrder = (egreso: EgresoContable) => {
+    // Asignar Folio si no tiene
+    if (!egreso.folioOrden) {
+      const newFolio = nextPaymentOrderFolio;
+
+      // 1. Actualizar el Egreso Localmente (y en Contexto)
+      const updatedEgreso = { ...egreso, folioOrden: newFolio };
+      setEgresosContables(prev => prev.map(e => e.id === egreso.id ? updatedEgreso : e));
+      setSelectedEgreso(updatedEgreso);
+
+      // 2. Incrementar el contador global
+      incrementPaymentOrderFolio();
+    } else {
+      setSelectedEgreso(egreso);
+    }
+    setIsOrderOpen(true);
   };
 
   const columns = useMemo<ColumnDef<EgresoContable>[]>(() => [
@@ -178,6 +201,22 @@ export default function EgresosPage() {
         <Badge variant="outline" className="text-[10px] whitespace-nowrap border-slate-300 text-slate-600">
           {row.getValue("fondo")}
         </Badge>
+      )
+    },
+    {
+      accessorKey: "departamento",
+      header: "Departamento / Área",
+      cell: ({ row }) => (
+        <div className="flex flex-col max-w-[150px]">
+          <span className="truncate text-xs text-muted-foreground" title={row.getValue("departamento")}>
+            {row.getValue("departamento") || "-"}
+          </span>
+          {row.original.area && (
+            <span className="text-[10px] text-slate-500 truncate" title={row.original.area}>
+              {row.original.area}
+            </span>
+          )}
+        </div>
       )
     },
     {
@@ -283,10 +322,14 @@ export default function EgresosPage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => {
-                  setSelectedEgreso(egreso);
-                  setIsOrderOpen(true);
-                }}
+                onClick={() => router.push(`/presupuesto/presupuesto-egresos?highlight=${egreso.cuentaContable}`)}
+                className="cursor-pointer text-emerald-700 focus:bg-emerald-50"
+              >
+                <FileText className="mr-2 h-4 w-4" /> Ver en Presupuesto
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => handleOpenOrder(egreso)}
                 className="cursor-pointer text-blue-700 focus:bg-blue-50"
               >
                 <FileText className="mr-2 h-4 w-4" /> Generar Orden de Pago
@@ -296,7 +339,7 @@ export default function EgresosPage() {
         )
       },
     },
-  ], [egresosContables]);
+  ], [egresosContables, nextPaymentOrderFolio]); // Added dependency to re-render if folio changes
 
   return (
     <SidebarProvider
@@ -354,7 +397,7 @@ export default function EgresosPage() {
               </p>
             </div>
             <div className="flex items-center space-x-2">
-              <AddEgresoDialog onSave={handleAddEgreso} />
+              <AddEgresoDialog />
             </div>
           </div>
           <Separator />
@@ -392,59 +435,69 @@ export default function EgresosPage() {
           <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-100">
 
             {/* --- HOJA DE PAPEL --- */}
-            <div id="orden-pago-container" className="bg-white w-[21.59cm] min-h-[27.94cm] p-16 shadow-2xl text-black font-serif text-[11px] leading-relaxed relative">
+            <div id="orden-pago-container" className="bg-white w-[21.59cm] min-h-[27.94cm] p-12 shadow-2xl text-black font-sans text-[10px] leading-snug relative">
 
               {/* ENCABEZADO Y LOGOS */}
-              <div className="grid grid-cols-12 gap-0 mb-8 border-b-2 border-black pb-6">
+              <div className="grid grid-cols-12 gap-0 mb-6 border-b-2 border-black pb-4">
                 <div className="col-span-2 flex items-center justify-start">
-                  <div className="w-16 h-16 border border-dashed border-gray-300 flex items-center justify-center text-[8px] text-gray-400">LOGO</div>
+                  {config.logoLeft ? (
+                    <img src={config.logoLeft} alt="Logo" className="w-16 h-auto object-contain" />
+                  ) : (
+                    <div className="w-14 h-14 border border-dashed border-gray-300 flex items-center justify-center text-[7px] text-gray-400">LOGO</div>
+                  )}
                 </div>
 
                 <div className="col-span-8 text-center flex flex-col justify-center">
-                  <h2 className="text-lg font-bold uppercase tracking-wide">MUNICIPIO DE JOSE AZUETA, VER</h2>
-                  <h1 className="text-2xl font-black uppercase mt-1 tracking-widest">ORDEN DE PAGO</h1>
+                  <h2 className="text-sm font-bold uppercase tracking-wide">MUNICIPIO DE JOSE AZUETA, VER</h2>
+                  <h1 className="text-xl font-black uppercase mt-1 tracking-widest">ORDEN DE PAGO</h1>
                 </div>
 
                 <div className="col-span-2 text-right flex flex-col items-end justify-center">
-                  <div className="text-center min-w-[80px]">
-                    {/* FOLIO MAS PEQUEÑO (text-[9px]) */}
-                    <div className="font-bold text-[9px] mb-1 uppercase tracking-wide">FOLIO</div>
-                    <div className="text-red-600 font-bold text-sm leading-none">No {selectedEgreso?.id.padStart(4, '0')}</div>
+                  <div className="text-center min-w-[70px]">
+                    <div className="font-bold text-[8px] mb-1 uppercase tracking-wide">FOLIO</div>
+                    <div className="text-red-600 font-bold text-xs leading-none">No {selectedEgreso?.folioOrden?.toString().padStart(4, '0') || "???? "}</div>
                   </div>
                 </div>
               </div>
 
               {/* DESTINATARIO */}
-              <div className="mb-8">
-                <p className="font-bold">C. JUAN PEREZ</p>
-                <p className="font-bold">TESORERO MUNICIPAL</p>
+              <div className="mb-4">
+                <p className="font-bold">C. TESORERO MUNICIPAL</p>
                 <p className="font-bold">PRESENTE:</p>
               </div>
 
               {/* TEXTO LEGAL */}
-              <p className="text-justify mb-8 leading-relaxed">
+              <p className="text-justify mb-6 leading-normal text-[9px]">
                 Con fundamento en lo establecido en el Capitulo IV, Artículos 36 fracción XIII, 37 fracción VII, 38 fracción VI y 72 fracción XX de la Ley Orgánica del Municipio Libre del Estado de Veracruz de Ignacio de la Llave y por medio de este conducto, le solicitamos tenga a bien llevar a efecto el pago correspondiente al siguiente detalle:
               </p>
 
               {/* CUERPO DE DATOS */}
-              <div className="mb-12 space-y-4 px-2">
+              <div className="mb-8 space-y-3 px-2">
 
                 {/* Paguese A */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">PAGUESE A:</div>
-                  <div className="w-[75%] font-bold text-sm uppercase border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">PAGUESE A:</div>
+                  <div className="w-[75%] font-bold text-xs uppercase border-b border-gray-300 pb-1">
                     {selectedEgreso?.pagueseA}
                   </div>
                 </div>
 
-                {/* Cantidad (LETRAS AQUÍ) */}
+                {/* AREA SOLICITANTE */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">LA CANTIDAD DE:</div>
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">AREA SOLICITANTE:</div>
+                  <div className="w-[75%] font-bold text-xs uppercase border-b border-gray-300 pb-1">
+                    {selectedEgreso?.departamento} {selectedEgreso?.area ? ` - ${selectedEgreso.area}` : ""}
+                  </div>
+                </div>
+
+                {/* Cantidad */}
+                <div className="flex items-baseline">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">LA CANTIDAD DE:</div>
                   <div className="w-[75%] border-b border-gray-300 pb-1">
-                    <span className="font-bold text-sm mr-4">
+                    <span className="font-bold text-xs mr-4">
                       {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(selectedEgreso?.monto || 0)}
                     </span>
-                    <span className="uppercase text-[10px] font-medium">
+                    <span className="uppercase text-[9px] font-medium">
                       ({convertirNumeroALetras(selectedEgreso?.monto || 0)})
                     </span>
                   </div>
@@ -452,23 +505,21 @@ export default function EgresosPage() {
 
                 {/* Concepto */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">POR CONCEPTO DE:</div>
-                  <div className="w-[75%] uppercase text-[10px] font-medium leading-tight border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">POR CONCEPTO DE:</div>
+                  <div className="w-[75%] uppercase text-[9px] font-medium leading-tight border-b border-gray-300 pb-1">
                     {selectedEgreso?.concepto}
                   </div>
                 </div>
 
-                {/* COG + Descripción */}
+                {/* COG */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">COG:</div>
-                  <div className="w-[75%] font-bold text-sm border-b border-gray-300 pb-1 flex gap-2">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">COG:</div>
+                  <div className="w-[75%] font-bold text-xs border-b border-gray-300 pb-1 flex gap-2">
                     <span>{selectedEgreso?.cog}</span>
-                    <span className="font-normal text-[10px] uppercase text-gray-700">
+                    <span className="font-normal text-[9px] uppercase text-gray-700 truncate">
                       {(() => {
                         if (!selectedEgreso?.cog) return "";
-                        // Find description in budget
                         const code = selectedEgreso.cog;
-                        // Flatten budget for search
                         const allItems = presupuesto.flatMap(p => p.subcuentas ? [p, ...p.subcuentas] : [p]);
                         const found = allItems.find(i => i.codigo === code);
                         return found ? found.descripcion : (CATALOGO_COG[code] || "PARTIDA PRESUPUESTAL");
@@ -479,16 +530,16 @@ export default function EgresosPage() {
 
                 {/* Cuenta Contable */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">CUENTA CONTABLE:</div>
-                  <div className="w-[75%] font-mono font-medium border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">CUENTA CONTABLE:</div>
+                  <div className="w-[75%] font-mono font-medium text-[10px] border-b border-gray-300 pb-1">
                     {selectedEgreso?.cuentaContable}
                   </div>
                 </div>
 
                 {/* Fondo */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">FONDO APLICABLE:</div>
-                  <div className="w-[75%] uppercase font-medium border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">FONDO APLICABLE:</div>
+                  <div className="w-[75%] uppercase font-medium text-[10px] border-b border-gray-300 pb-1">
                     <span className="font-bold mr-2">1501</span>
                     {selectedEgreso?.fondo}
                   </div>
@@ -496,24 +547,24 @@ export default function EgresosPage() {
 
                 {/* Banco */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">INSTITUCION BANCARIA:</div>
-                  <div className="w-[75%] uppercase font-medium border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">INSTITUCION BANCARIA:</div>
+                  <div className="w-[75%] uppercase font-medium text-[10px] border-b border-gray-300 pb-1">
                     {selectedEgreso?.institucionBancaria}
                   </div>
                 </div>
 
                 {/* Cuenta Bancaria */}
                 <div className="flex items-baseline">
-                  <div className="w-[25%] font-bold uppercase text-[10px] tracking-wide">CUENTA BANCARIA:</div>
-                  <div className="w-[75%] uppercase font-medium border-b border-gray-300 pb-1">
+                  <div className="w-[25%] font-bold uppercase text-[9px] tracking-wide">CUENTA BANCARIA:</div>
+                  <div className="w-[75%] uppercase font-medium text-[10px] border-b border-gray-300 pb-1">
                     {selectedEgreso?.cuentaBancaria}
                   </div>
                 </div>
               </div>
 
               {/* PIE DE PÁGINA LEGAL */}
-              <div className="px-4 mb-20 text-center">
-                <p className="font-bold uppercase text-[9px] leading-tight tracking-wide">
+              <div className="px-4 mb-10 text-center">
+                <p className="font-bold uppercase text-[8px] leading-tight tracking-wide text-gray-600">
                   EFECTUANDO EL CARGO DE LA PARTIDA CORRESPONDIENTE DEL PRESUPUESTO DE EGRESOS AUTORIZADO PARA EL PRESENTE EJERCICIO FISCAL, DE CONFORMIDAD CON LAS DISPOSICIONES LEGALES Y PRESUPUESTALES APLICABLE, A LA CUENTA CONTABLE.
                 </p>
               </div>
@@ -521,35 +572,73 @@ export default function EgresosPage() {
               {/* FECHA Y FIRMAS (Parte Inferior) */}
               <div className="mt-auto">
                 {/* Fecha */}
-                <div className="flex justify-end mb-16">
-                  <p className="font-bold uppercase text-xs">
+                <div className="flex justify-end mb-8">
+                  <p className="font-bold uppercase text-[10px]">
                     JOSE AZUETA VER., A {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
                   </p>
                 </div>
 
-                {/* Grid de Firmas */}
-                <div className="grid grid-cols-3 gap-12 text-center text-[10px]">
-                  <div className="flex flex-col items-center">
-                    <p className="font-bold mb-12">ELABORÓ</p>
-                    <div className="border-t border-black w-full pt-2">
-                      <p className="font-bold uppercase">C. [NOMBRE]</p>
-                      <p className="uppercase text-[9px]">AUXILIAR ADMINISTRATIVO</p>
+                {/* FECHA Y FIRMAS (Parte Inferior) */}
+                <div className="mt-8 space-y-8">
+                  {/* Fila 1: AUTORIZA (Arriba Centro) */}
+                  <div className="flex justify-center">
+                    <div className="flex flex-col items-center w-64">
+                      <p className="font-bold mb-8 uppercase text-[8px] tracking-wider">AUTORIZA</p>
+                      <div className="border-t border-black w-full pt-1 text-center">
+                        <p className="font-bold uppercase text-[9px]">
+                          {paymentOrderSigners.autoriza || "NOMBRE DEL PRESIDENTE"}
+                        </p>
+                        <p className="uppercase text-[8px] text-gray-600">
+                          PRESIDENTE MUNICIPAL
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center">
-                    <p className="font-bold mb-12">REVISÓ</p>
-                    <div className="border-t border-black w-full pt-2">
-                      <p className="font-bold uppercase">C. [NOMBRE]</p>
-                      <p className="uppercase text-[9px]">CONTRALOR INTERNO</p>
+                  {/* Fila 2: COMISIÓN DE HACIENDA MUNICIPAL (Dos firmantes) */}
+                  <div>
+                    <p className="text-center font-bold uppercase text-[8px] tracking-wider mb-6">
+                      COMISIÓN DE HACIENDA MUNICIPAL
+                    </p>
+                    <div className="flex justify-center gap-16">
+                      {/* Síndico */}
+                      <div className="flex flex-col items-center w-56">
+                        <div className="border-t border-black w-full pt-1 text-center">
+                          <p className="font-bold uppercase text-[9px]">
+                            {paymentOrderSigners.comisionHacienda1 || "NOMBRE DEL SÍNDICO"}
+                          </p>
+                          <p className="uppercase text-[8px] text-gray-600">
+                            SÍNDICO (A) MUNICIPAL
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Regidor */}
+                      <div className="flex flex-col items-center w-56">
+                        <div className="border-t border-black w-full pt-1 text-center">
+                          <p className="font-bold uppercase text-[9px]">
+                            {paymentOrderSigners.comisionHacienda2 || "NOMBRE DEL REGIDOR"}
+                          </p>
+                          <p className="uppercase text-[8px] text-gray-600">
+                            REGIDOR (A) MUNICIPAL
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center">
-                    <p className="font-bold mb-12">AUTORIZA</p>
-                    <div className="border-t border-black w-full pt-2">
-                      <p className="font-bold uppercase">C. GIOVANNY AULI MOO</p>
-                      <p className="uppercase text-[9px]">PRESIDENTE MUNICIPAL</p>
+                  {/* Fila 3: DOY FÉ (Abajo Centro) */}
+                  <div className="flex justify-center">
+                    <div className="flex flex-col items-center w-64">
+                      <p className="font-bold mb-8 uppercase text-[8px] tracking-wider">DOY FÉ</p>
+                      <div className="border-t border-black w-full pt-1 text-center">
+                        <p className="font-bold uppercase text-[9px]">
+                          {paymentOrderSigners.doyFe || "NOMBRE DEL SECRETARIO"}
+                        </p>
+                        <p className="uppercase text-[8px] text-gray-600">
+                          SECRETARIO DEL H. AYUNTAMIENTO
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -557,8 +646,9 @@ export default function EgresosPage() {
 
             </div>
           </div>
+
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent>
@@ -585,6 +675,6 @@ export default function EgresosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarProvider>
+    </SidebarProvider >
   )
 }

@@ -7,93 +7,287 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- Bank Module ---
+// ============================================
+// AUTHENTICATION & USERS
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          String    @default("user") // admin, tesorero, contador, user
+  isActive      Boolean   @default(true)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ============================================
+// TREASURY MODULE - Bank Management
+// ============================================
 
 model BankAccount {
-  id                  String        @id @default(uuid())
-  banco               String
-  alias               String
-  numeroCuenta        String        @unique
-  clabe               String        @unique
-  saldo               Decimal       @default(0.0)
-  saldoDisponible     Decimal       @default(0.0)
-  tipo                String
-  fuenteFinanciamiento Fuente       @relation(fields: [fuenteFinanciamientoId], references: [id])
-  fuenteFinanciamientoId String
-  estatus             String        @default("Activa") // Activa, Bloqueada
-  moneda              String        @default("MXN")
+  id                      String        @id @default(uuid())
+  banco                   String
+  alias                   String
+  numeroCuenta            String        @unique
+  clabe                   String        @unique
+  saldo                   Decimal       @default(0.0) @db.Decimal(15, 2)
+  saldoDisponible         Decimal       @default(0.0) @db.Decimal(15, 2)
+  tipo                    String        // Cheques (Operativa), Inversión (Productiva), Nómina, Fondo Revolvente
   
-  transactions        Transaction[]
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  // Relations
+  fuente                  Fuente        @relation(fields: [fuenteId], references: [id])
+  fuenteId                String
+  
+  // Additional Info
+  sucursal                String?
+  direccionSucursal       String?
+  ejecutivo               String?
+  telefonoEjecutivo       String?
+  fechaApertura           DateTime?
+  estatus                 String        @default("Activa") // Activa, Bloqueada, En Trámite
+  regimen                 String?       // Mancomunada, Indistinta
+  moneda                  String        @default("MXN")
+  
+  // Relations
+  transactions            Transaction[]
+  
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 }
 
 model Transaction {
-  id               String          @id @default(uuid())
-  account          BankAccount     @relation(fields: [accountId], references: [id])
-  accountId        String
-  fecha            DateTime
-  concepto         String
-  referencia       String?
-  monto            Decimal
-  tipo             String          // Ingreso, Egreso
-  estatus          String          // Conciliado, En Tránsito, Cancelado
+  id                String          @id @default(uuid())
+  account           BankAccount     @relation(fields: [accountId], references: [id])
+  accountId         String
   
-  // Link to Accounting (Optional)
-  egresoContable   EgresoContable? @relation(fields: [egresoContableId], references: [id])
-  egresoContableId String?         
+  fecha             DateTime
+  concepto          String
+  referencia        String?
+  monto             Decimal         @db.Decimal(15, 2)
+  tipo              String          // Ingreso, Egreso
+  estatus           String          // Completado, En Tránsito, Cancelado
   
-  createdAt        DateTime        @default(now())
+  // Link to Accounting
+  ingresoContableId String?
+  ingresoContable   IngresoContable? @relation(fields: [ingresoContableId], references: [id])
+  
+  egresoContableId  String?
+  egresoContable    EgresoContable?  @relation(fields: [egresoContableId], references: [id])
+  
+  createdAt         DateTime        @default(now())
 }
 
-// --- Budget & Accounting Module ---
+// ============================================
+// BUDGET MODULE - COG & CRI Classifiers
+// ============================================
 
-model PresupuestoItem {
+model ClasificadorCOG {
   id                   String            @id @default(uuid())
-  codigo               String            @unique // e.g., "1000", "1100"
-  descripcion          String
+  codigo               String            @unique // e.g., "5.1.1.1.01.01"
+  nombre               String
+  cog                  String?           // COG code
+  cuenta_registro      String?
   nivel                String            // Capitulo, Concepto, Partida
   
   // Self-relation for Hierarchy
-  parent               PresupuestoItem?  @relation("BudgetHierarchy", fields: [parentId], references: [id])
+  parent               ClasificadorCOG?  @relation("COGHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   parentId             String?
-  subcuentas           PresupuestoItem[] @relation("BudgetHierarchy")
+  subcuentas           ClasificadorCOG[] @relation("COGHierarchy")
   
-  fuenteFinanciamiento String
-  aprobado             Decimal           @default(0.0)
-  modificado           Decimal           @default(0.0)
-  devengado            Decimal           @default(0.0)
-  pagado               Decimal           @default(0.0)
+  // Budget data
+  aprobado             Decimal           @default(0.0) @db.Decimal(15, 2)
+  modificado           Decimal           @default(0.0) @db.Decimal(15, 2)
+  devengado            Decimal           @default(0.0) @db.Decimal(15, 2)
+  pagado               Decimal           @default(0.0) @db.Decimal(15, 2)
+  
+  // Monthly breakdown (Presupuestado)
+  enero                Decimal?          @db.Decimal(15, 2)
+  febrero              Decimal?          @db.Decimal(15, 2)
+  marzo                Decimal?          @db.Decimal(15, 2)
+  abril                Decimal?          @db.Decimal(15, 2)
+  mayo                 Decimal?          @db.Decimal(15, 2)
+  junio                Decimal?          @db.Decimal(15, 2)
+  julio                Decimal?          @db.Decimal(15, 2)
+  agosto               Decimal?          @db.Decimal(15, 2)
+  septiembre           Decimal?          @db.Decimal(15, 2)
+  octubre              Decimal?          @db.Decimal(15, 2)
+  noviembre            Decimal?          @db.Decimal(15, 2)
+  diciembre            Decimal?          @db.Decimal(15, 2)
+  
+  // Monthly breakdown (Contable)
+  enero_contable       Decimal?          @db.Decimal(15, 2)
+  febrero_contable     Decimal?          @db.Decimal(15, 2)
+  marzo_contable       Decimal?          @db.Decimal(15, 2)
+  abril_contable       Decimal?          @db.Decimal(15, 2)
+  mayo_contable        Decimal?          @db.Decimal(15, 2)
+  junio_contable       Decimal?          @db.Decimal(15, 2)
+  julio_contable       Decimal?          @db.Decimal(15, 2)
+  agosto_contable      Decimal?          @db.Decimal(15, 2)
+  septiembre_contable  Decimal?          @db.Decimal(15, 2)
+  octubre_contable     Decimal?          @db.Decimal(15, 2)
+  noviembre_contable   Decimal?          @db.Decimal(15, 2)
+  diciembre_contable   Decimal?          @db.Decimal(15, 2)
   
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  
+  @@index([codigo])
+  @@index([nivel])
+}
+
+model ClasificadorCRI {
+  id                   String            @id @default(uuid())
+  codigo               String            @unique // e.g., "4.1.1.1.01.01"
+  nombre               String
+  cri                  String?           // CRI code
+  cuenta_de_registro   String?
+  nivel                String            // Capitulo, Concepto, Partida
+  
+  // Self-relation for Hierarchy
+  parent               ClasificadorCRI?  @relation("CRIHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId             String?
+  subcuentas           ClasificadorCRI[] @relation("CRIHierarchy")
+  
+  // Budget data
+  aprobado             Decimal           @default(0.0) @db.Decimal(15, 2)
+  modificado           Decimal           @default(0.0) @db.Decimal(15, 2)
+  recaudado            Decimal           @default(0.0) @db.Decimal(15, 2)
+  
+  // Monthly breakdown (Estimado)
+  enero                Decimal?          @db.Decimal(15, 2)
+  febrero              Decimal?          @db.Decimal(15, 2)
+  marzo                Decimal?          @db.Decimal(15, 2)
+  abril                Decimal?          @db.Decimal(15, 2)
+  mayo                 Decimal?          @db.Decimal(15, 2)
+  junio                Decimal?          @db.Decimal(15, 2)
+  julio                Decimal?          @db.Decimal(15, 2)
+  agosto               Decimal?          @db.Decimal(15, 2)
+  septiembre           Decimal?          @db.Decimal(15, 2)
+  octubre              Decimal?          @db.Decimal(15, 2)
+  noviembre            Decimal?          @db.Decimal(15, 2)
+  diciembre            Decimal?          @db.Decimal(15, 2)
+  
+  // Monthly breakdown (Recaudado)
+  enero_contable       Decimal?          @db.Decimal(15, 2)
+  febrero_contable     Decimal?          @db.Decimal(15, 2)
+  marzo_contable       Decimal?          @db.Decimal(15, 2)
+  abril_contable       Decimal?          @db.Decimal(15, 2)
+  mayo_contable        Decimal?          @db.Decimal(15, 2)
+  junio_contable       Decimal?          @db.Decimal(15, 2)
+  julio_contable       Decimal?          @db.Decimal(15, 2)
+  agosto_contable      Decimal?          @db.Decimal(15, 2)
+  septiembre_contable  Decimal?          @db.Decimal(15, 2)
+  octubre_contable     Decimal?          @db.Decimal(15, 2)
+  noviembre_contable   Decimal?          @db.Decimal(15, 2)
+  diciembre_contable   Decimal?          @db.Decimal(15, 2)
+  
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  
+  @@index([codigo])
+  @@index([nivel])
+}
+
+// ============================================
+// ACCOUNTING MODULE - Ingresos & Egresos
+// ============================================
+
+model IngresoContable {
+  id                String        @id @default(uuid())
+  concepto          String
+  fuente            String
+  monto             Decimal       @db.Decimal(15, 2)
+  estado            String        // Completado, Pendiente, Procesando
+  fecha             DateTime
+  cuentaBancaria    String?       // Reference to bank account
+  
+  // Relations
+  transactions      Transaction[]
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 model EgresoContable {
   id                  String        @id @default(uuid())
-  polizaNumero        String        // Generated ID like "P-2024-001"
-  fecha               DateTime
-  cog                 String        // Link to PresupuestoItem.codigo mostly logical
+  cog                 String        // Link to ClasificadorCOG code
   cuentaContable      String
   pagueseA            String
-  monto               Decimal
+  monto               Decimal       @db.Decimal(15, 2)
   concepto            String
-  origenBancario      Boolean       @default(false)
+  fondo               String
+  institucionBancaria String
+  cuentaBancaria      String
+  fecha               DateTime
+  tipo                String        // Manual, Bancario
+  estatus             String        // Pendiente, Pagado, Cancelado
+  folioOrden          Int?
+  departamento        String?
+  area                String?
   
-  // Link back to bank (Optional, can be 1-to-many depending on business logic, keeping simple 1-1 for now based on prompt)
-  bankTransaction     Transaction[]
+  // Relations
+  transactions        Transaction[]
   
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 }
 
+// ============================================
+// CATALOGS MODULE
+// ============================================
+
 model Fuente {
   id        String        @id @default(uuid())
-  acronimo  String
+  acronimo  String        @unique
   nombre    String
-  origen    String        // Federal, Estatal, Propio
+  origen    String        // Federal, Estatal, Ingresos Propios, etc.
   
   cuentas   BankAccount[]
   
   createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model Departamento {
+  id        String   @id @default(uuid())
+  nombre    String
+  areas     String[] // Array of area names
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Firmante {
+  id        String   @id @default(uuid())
+  nombre    String
+  puesto    String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id              String   @id @default(uuid())
+  key             String   @unique // logoLeft, logoRight, nombreEnte, rfc, etc.
+  value           String   @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  action    String
+  details   String   @db.Text
+  user      String
+  type      String   // create, update, transfer, alert, delete
+  
+  createdAt DateTime @default(now())
 }

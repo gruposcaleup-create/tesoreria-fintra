@@ -29,7 +29,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-// IMPORTANTE: Asegúrate de importar desde 'next/navigation'
+import { signOutAction } from "@/app/actions/auth-actions"
 import { useRouter } from "next/navigation"
 
 export function NavUser({
@@ -42,13 +42,12 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
-  
-  // SOLUCIÓN: Inicializamos el router aquí dentro
-  const router = useRouter()
 
-  const handleLogout = () => {
-    // Redirigimos directamente al login
-    router.push("/login")
+  // SOLUCIÓN: Inicializamos el router aquí dentro
+  const router = useRouter() // Keep router for other nav but not for logout if possible, or just keep it.
+
+  const handleLogout = async () => {
+    await signOutAction()
   }
 
   const goToSettings = (tab: string) => {
@@ -77,7 +76,7 @@ export function NavUser({
               <ChevronsUpDown className="ml-auto size-4 text-slate-400" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
-          
+
           <DropdownMenuContent
             className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg border-slate-200 shadow-md"
             side={isMobile ? "bottom" : "right"}
@@ -98,25 +97,25 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
-            
+
             <DropdownMenuSeparator className="bg-slate-100" />
-            
+
             <DropdownMenuGroup>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => goToSettings("perfil")}
                 className="cursor-pointer text-slate-700 focus:bg-slate-50"
               >
                 <BadgeCheck className="mr-2 size-4 text-slate-400" />
                 Cuenta
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => goToSettings("facturacion")}
                 className="cursor-pointer text-slate-700 focus:bg-slate-50"
               >
                 <CreditCard className="mr-2 size-4 text-slate-400" />
                 Planes y Facturación
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => goToSettings("seguridad")}
                 className="cursor-pointer text-slate-700 focus:bg-slate-50"
               >
@@ -124,10 +123,10 @@ export function NavUser({
                 Seguridad
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            
+
             <DropdownMenuSeparator className="bg-slate-100" />
-            
-            <DropdownMenuItem 
+
+            <DropdownMenuItem
               onClick={handleLogout}
               className="cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50 font-medium"
             >

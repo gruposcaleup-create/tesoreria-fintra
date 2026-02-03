@@ -77,9 +77,29 @@ export default function SupplierManagement() {
                     <p className="text-muted-foreground">Gestión de Expedientes, Cuentas Bancarias y Validación SAT.</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                    <Button variant="outline" className="gap-2 bg-background hidden md:flex">
-                        <ExternalLink className="w-4 h-4" /> Consultar Listas Negras 69-B
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="gap-2 bg-background hidden md:flex">
+                                <ExternalLink className="w-4 h-4" /> Consultar Listas Negras
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Listas de Incumplidos</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => window.open("http://omawww.sat.gob.mx/cifras_sat/Paginas/datos/vinculo.html?page=ListCompleta69B.html", "_blank")}
+                            >
+                                SAT Art. 69-B (Federal)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => window.open("http://www.veracruz.gob.mx/contraloria/psp/", "_blank")}
+                            >
+                                Sancionados Veracruz (Estatal)
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button onClick={() => setIsNewOpen(true)} className="bg-primary shadow-md w-full md:w-auto hover:bg-primary/90 text-primary-foreground">
                         <Plus className="w-4 h-4 mr-2" /> Nuevo Proveedor
                     </Button>
@@ -524,9 +544,25 @@ export default function SupplierManagement() {
                                     <Select>
                                         <SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="601">601 - General de Ley P.M.</SelectItem>
-                                            <SelectItem value="612">612 - Personas Físicas</SelectItem>
-                                            <SelectItem value="626">626 - RESICO</SelectItem>
+                                            <SelectItem value="601">601 - General de Ley Personas Morales</SelectItem>
+                                            <SelectItem value="603">603 - Personas Morales con Fines no Lucrativos</SelectItem>
+                                            <SelectItem value="605">605 - Sueldos y Salarios e Ingresos Asimilados a Salarios</SelectItem>
+                                            <SelectItem value="606">606 - Arrendamiento</SelectItem>
+                                            <SelectItem value="607">607 - Régimen de Enajenación o Adquisición de Bienes</SelectItem>
+                                            <SelectItem value="608">608 - Demás ingresos</SelectItem>
+                                            <SelectItem value="610">610 - Residentes en el Extranjero sin Establecimiento Permanente en México</SelectItem>
+                                            <SelectItem value="611">611 - Ingresos por Dividendos (socios y accionistas)</SelectItem>
+                                            <SelectItem value="612">612 - Personas Físicas con Actividades Empresariales y Profesionales</SelectItem>
+                                            <SelectItem value="614">614 - Ingresos por intereses</SelectItem>
+                                            <SelectItem value="615">615 - Régimen de los ingresos por obtención de premios</SelectItem>
+                                            <SelectItem value="616">616 - Sin obligaciones fiscales</SelectItem>
+                                            <SelectItem value="620">620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos</SelectItem>
+                                            <SelectItem value="621">621 - Incorporación Fiscal</SelectItem>
+                                            <SelectItem value="622">622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras</SelectItem>
+                                            <SelectItem value="623">623 - Opcional para Grupos de Sociedades</SelectItem>
+                                            <SelectItem value="624">624 - Coordinados</SelectItem>
+                                            <SelectItem value="625">625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</SelectItem>
+                                            <SelectItem value="626">626 - Régimen Simplificado de Confianza</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import {
   ArrowRightLeft, AlertCircle, MoreVertical, Filter,
-  ChevronDown, ChevronRight, Wallet, Printer, FileText, PlusCircle
+  ChevronDown, ChevronRight, Wallet, Printer, FileText,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -38,42 +38,7 @@ export default function BudgetManagement() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
 
-  // NEW ITEM MODAL STATE
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newItemType, setNewItemType] = useState<"Capitulo" | "Partida">("Partida");
-  const [newItemCode, setNewItemCode] = useState("");
-  const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemMonto, setNewItemMonto] = useState("");
-  const [newItemFuente, setNewItemFuente] = useState("");
-  const [newItemParent, setNewItemParent] = useState("");
 
-  const handleAddBudget = () => {
-    if (!newItemCode || !newItemDesc || !newItemMonto || !newItemFuente) return alert("Complete todos los campos");
-
-    // For Partida, parent is required
-    if (newItemType === "Partida" && !newItemParent) return alert("Seleccione un Capítulo Padre");
-
-    const amount = parseFloat(newItemMonto);
-    if (isNaN(amount)) return;
-
-    const newItem: PresupuestoItem = {
-      codigo: newItemCode,
-      descripcion: newItemDesc,
-      nivel: newItemType === "Partida" ? "Concepto" : "Capitulo", // Using "Concepto" as generic term for Partida/Concepto level in this context
-      fuenteFinanciamiento: newItemFuente,
-      aprobado: amount,
-      modificado: amount,
-      devengado: 0,
-      pagado: 0,
-      subcuentas: [],
-      isExpanded: false
-    };
-
-    addPresupuestoItem(newItem, newItemType === "Partida" ? newItemParent : undefined);
-
-    // Reset and Close
-    setNewItemCode(""); setNewItemDesc(""); setNewItemMonto(""); setIsAddModalOpen(false);
-  };
 
   // Toggle para expandir/colapsar filas
   const toggleRow = (codigo: string) => {
@@ -173,9 +138,6 @@ export default function BudgetManagement() {
           <p className="text-muted-foreground">Control Presupuestal por Objeto del Gasto (COG)</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
-            <PlusCircle className="w-4 h-4 mr-2" /> Agregar
-          </Button>
           <Button variant="outline" className="gap-2 bg-background border-border hover:bg-accent text-foreground" onClick={() => setIsReportOpen(true)}>
             <FileText className="w-4 h-4" /> Reporte CONAC
           </Button>
@@ -534,76 +496,7 @@ export default function BudgetManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: AGREGAR PRESUPUESTO */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Agregar Partida Presupuestal</DialogTitle>
-            <DialogDescription>Crea un nuevo Capítulo o Partida.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Registro</Label>
-                <Select value={newItemType} onValueChange={(v: "Capitulo" | "Partida") => setNewItemType(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Capitulo">Capítulo (Nivel 1)</SelectItem>
-                    <SelectItem value="Partida">Partida (Nivel 2)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {newItemType === "Partida" && (
-                <div className="space-y-2">
-                  <Label>Capítulo Padre</Label>
-                  <Select value={newItemParent} onValueChange={setNewItemParent}>
-                    <SelectTrigger><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                    <SelectContent>
-                      {presupuesto.filter(p => p.nivel === "Capitulo").map(p => (
-                        <SelectItem key={p.codigo} value={p.codigo}>{p.codigo} - {p.descripcion}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
 
-            <div className="grid grid-cols-4 gap-4">
-              <div className="col-span-1 space-y-2">
-                <Label>Código</Label>
-                <Input value={newItemCode} onChange={e => setNewItemCode(e.target.value)} placeholder="0000" className="font-mono" />
-              </div>
-              <div className="col-span-3 space-y-2">
-                <Label>Descripción</Label>
-                <Input value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} placeholder="Nombre el concepto..." />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monto Aprobado</Label>
-                <Input type="number" value={newItemMonto} onChange={e => setNewItemMonto(e.target.value)} placeholder="0.00" />
-              </div>
-              <div className="space-y-2">
-                <Label>Fuente de Financiamiento</Label>
-                <Select value={newItemFuente} onValueChange={setNewItemFuente}>
-                  <SelectTrigger><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mixto">Mixto</SelectItem>
-                    {fuentes.map(f => (
-                      <SelectItem key={f.id} value={f.acronimo}>{f.acronimo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAddBudget}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
     </div>
   )

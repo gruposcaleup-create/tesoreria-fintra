@@ -211,19 +211,30 @@ export function BankCards({
 
   // --- CALCULO DE SALDOS CONTABLES ---
   const getAccountingBalance = (account: typeof cuentas[0]) => {
-    // 1. Ingresos Contables (Mapeo por Fuente de Financiamiento)
-    // Se suman TODOS los ingresos contables de esa fuente, independientemente de su estado.
-    // La premisa es: Saldo Base (Bancario) + Ingresos Proyectados - Egresos Proyectados.
-    const totalIngresosContables = ingresosContables
-      .filter(i => i.fuente === account.fuente)
+    // 1. Ingresos Contables PENDIENTES
+    // Filtramos solo los pendientes para no sumar doble (ya que los completados están en el saldo real)
+    // Usamos el ID de cuentaBancaria si existe, para mayor precisión.
+    const totalIngresosPendientes = ingresosContables
+      .filter(i => {
+        const isPending = i.estado === "Pendiente";
+        const isMatch = i.cuentaBancaria ? i.cuentaBancaria === account.id : i.fuente === account.fuente;
+        return isPending && isMatch;
+      })
       .reduce((sum, i) => sum + i.monto, 0);
 
-    // 2. Egresos Contables (Mapeo por Nombre de Banco)
-    const totalEgresosContables = egresosContables
-      .filter(e => e.institucionBancaria.toLowerCase().includes(account.banco.toLowerCase()))
+    // 2. Egresos Contables PENDIENTES
+    const totalEgresosPendientes = egresosContables
+      .filter(e => {
+        const isPending = e.estatus === "Pendiente";
+        // Preferimos match por ID, fallback a nombre de banco
+        const isMatch = e.cuentaBancaria
+          ? e.cuentaBancaria === account.id
+          : e.institucionBancaria.toLowerCase().includes(account.banco.toLowerCase());
+        return isPending && isMatch;
+      })
       .reduce((sum, e) => sum + e.monto, 0);
 
-    return account.saldo + totalIngresosContables - totalEgresosContables;
+    return account.saldo + totalIngresosPendientes - totalEgresosPendientes;
   }
 
   return (
