@@ -8,7 +8,8 @@ export async function authenticate(
     formData: FormData,
 ) {
     try {
-        await signIn('credentials', formData);
+        const redirectTo = 'https://tesoreria-fintra1.vercel.app';
+        await signIn('credentials', { ...Object.fromEntries(formData), redirectTo });
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
@@ -43,33 +44,26 @@ export async function register(prevState: string | undefined, formData: FormData
     const { name, email, password, role } = validatedFields.data
 
     try {
-        /*
-    const userExists = await (prisma as any).user.findUnique({
-      where: { email },
-    })
+        const userExists = await (prisma as any).user.findUnique({
+            where: { email },
+        })
 
-    if (userExists) {
-      return "El correo ya está registrado."
-    }
+        if (userExists) {
+            return "El correo ya está registrado."
+        }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
+        const hashedPassword = await bcrypt.hash(password, 10)
 
-    await (prisma as any).user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: role || 'user',
-      },
-    })
-    */
+        await (prisma as any).user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role: role || 'user',
+            },
+        })
 
-        // MOCK SUCCESS
-        console.log("Mock registration for:", email);
-        return "Usuario creado exitosamente (Modo Local). Ahora puedes iniciar sesión.";
-
-        // Auto login or redirect? For now just return success message or redirect
-        // return "Usuario creado exitosamente. Ahora puedes iniciar sesión."
+        return "Usuario creado exitosamente. Ahora puedes iniciar sesión."
     } catch (error) {
         console.error("Registration error:", error)
         if (error instanceof Error) {

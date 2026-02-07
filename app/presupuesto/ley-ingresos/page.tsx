@@ -46,7 +46,7 @@ const MONTHS = [
     { key: 'diciembre', label: 'Diciembre' },
 ] as const;
 
-export default function LeyIngresosPage() {
+function LeyIngresosContent() {
     const { leyIngresos, ingresosContables } = useTreasury()
     const searchParams = useSearchParams()
     const highlightCog = searchParams.get('highlight')
@@ -590,5 +590,13 @@ export default function LeyIngresosPage() {
                 </div>
             </SidebarInset>
         </SidebarProvider>
+    )
+}
+
+export default function LeyIngresosPage() {
+    return (
+        <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+            <LeyIngresosContent />
+        </React.Suspense>
     )
 }

@@ -18,6 +18,7 @@ async function getUser(email: string): Promise<any> {
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
+    trustHost: true,
     providers: [
         Credentials({
             async authorize(credentials) {
@@ -27,20 +28,12 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                 if (parsedCredentials.success) {
                     const { email, password } = parsedCredentials.data;
-                    // DB DISCONNECTED: Mock login allowed for any email/password
-                    // const user = await (prisma as any).user.findUnique({ where: { email } });
-                    // if (!user) return null;
-                    // const passwordsMatch = await bcrypt.compare(password, user.password);
 
-                    // if (passwordsMatch) return user;
+                    const user = await (prisma as any).user.findUnique({ where: { email } });
+                    if (!user) return null;
+                    const passwordsMatch = await bcrypt.compare(password, user.password);
 
-                    // MOCK USER RETURN
-                    return {
-                        id: 'mock-user-id',
-                        name: 'Usuario Local',
-                        email: email,
-                        role: 'admin'
-                    } as any;
+                    if (passwordsMatch) return user;
                 }
 
                 console.log('Invalid credentials');

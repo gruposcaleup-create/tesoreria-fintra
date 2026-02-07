@@ -30,7 +30,7 @@ const MONTHS = [
     { key: 'diciembre', label: 'Diciembre' },
 ] as const;
 
-export default function PresupuestoEgresosPage() {
+function PresupuestoEgresosContent() {
     const { presupuesto, egresosContables } = useTreasury()
     const searchParams = useSearchParams()
     const highlightCog = searchParams.get('highlight')
@@ -363,5 +363,13 @@ export default function PresupuestoEgresosPage() {
                 </div>
             </SidebarInset>
         </SidebarProvider>
+    )
+}
+
+export default function PresupuestoEgresosPage() {
+    return (
+        <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+            <PresupuestoEgresosContent />
+        </React.Suspense>
     )
 }

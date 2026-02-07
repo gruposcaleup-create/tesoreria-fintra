@@ -11,7 +11,12 @@ export const authConfig = {
             // Allow access to login, signup, and public assets
             if (nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/signup') || nextUrl.pathname.startsWith('/api') || nextUrl.pathname.startsWith('/_next') || nextUrl.pathname.includes('.')) {
                 if (isLoggedIn && nextUrl.pathname.startsWith('/login')) {
-                    return Response.redirect(new URL('/', nextUrl));
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                        ? process.env.NEXT_PUBLIC_APP_URL
+                        : process.env.VERCEL_URL
+                            ? `https://${process.env.VERCEL_URL}`
+                            : nextUrl.origin;
+                    return Response.redirect(new URL('/', baseUrl));
                 }
                 return true;
             }
@@ -24,4 +29,5 @@ export const authConfig = {
         },
     },
     providers: [], // Add providers with an empty array for now
+    trustHost: true,
 } satisfies NextAuthConfig;
