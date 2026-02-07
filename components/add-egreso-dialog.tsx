@@ -252,7 +252,7 @@ export function AddEgresoDialog({ onSave }: { onSave?: (data: any) => void }) {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!formData.cog || !formData.monto || !formData.concepto) {
@@ -260,28 +260,99 @@ export function AddEgresoDialog({ onSave }: { onSave?: (data: any) => void }) {
       return
     }
 
-    const newEgreso: EgresoContable = {
-      id: Math.random().toString(36).substr(2, 9),
-      cog: formData.cog,
-      cuentaContable: formData.cuentaContable,
-      pagueseA: formData.pagueseA,
-      monto: parseFloat(formData.monto.toString().replace(/,/g, '')),
-      concepto: formData.concepto,
-      fondo: formData.fondo,
-      institucionBancaria: formData.institucionBancaria,
-      cuentaBancaria: formData.cuentaBancaria,
-      estatus: "Pendiente",
-      fecha: formData.fecha,
-      poliza: formData.poliza || "",
-      tipo: formData.cuentaBancaria === "MANUAL_CASH" ? "Manual" : "Bancario",
-    };
+    const montoNumerico = parseFloat(formData.monto.toString().replace(/,/g, ''));
+    const tipoEgreso = formData.cuentaBancaria === "MANUAL_CASH" ? "Manual" : "Bancario";
 
-    setEgresosContables(prev => [newEgreso, ...prev])
-    incrementPaymentOrderFolio()
-    addToLog("Egreso Registrado", `Se registró un egreso por ${newEgreso.monto}`, "create")
+    try {
+      // Import and call server action
+      const { createEgreso } = await import("@/app/actions/treasury");
+      const result = await createEgreso({
+        cog: formData.cog,
+        cuentaContable: formData.cuentaContable,
+        pagueseA: formData.pagueseA,
+        monto: montoNumerico,
+        concepto: formData.concepto,
+        fondo: formData.fondo,
+        institucionBancaria: formData.institucionBancaria,
+        cuentaBancaria: formData.cuentaBancaria,
+        fecha: formData.fecha,
+        tipo: tipoEgreso,
+        estatus: "Pendiente",
+        folioOrden: nextPaymentOrderFolio,
+        departamento: formData.departamento,
+        area: formData.area
+      });
 
-    // Actualizar el presupuesto con el monto del egreso
-    updateBudgetFromEgreso(formData.cog, parseFloat(formData.monto), formData.fecha);
+      if (result.success && result.data) {
+        const newEgreso: EgresoContable = {
+          id: result.data.id, // Use DB-generated ID
+          cog: formData.cog,
+          cuentaContable: formData.cuentaContable,
+          pagueseA: formData.pagueseA,
+          monto: montoNumerico,
+          concepto: formData.concepto,
+          fondo: formData.fondo,
+          institucionBancaria: formData.institucionBancaria,
+          cuentaBancaria: formData.cuentaBancaria,
+          estatus: "Pendiente",
+          fecha: formData.fecha,
+          poliza: formData.poliza || "",
+          tipo: tipoEgreso,
+          folioOrden: nextPaymentOrderFolio,
+          departamento: formData.departamento,
+          area: formData.area
+        };
+
+        setEgresosContables(prev => [newEgreso, ...prev]);
+        incrementPaymentOrderFolio();
+        addToLog("Egreso Registrado", `Se registró un egreso por ${newEgreso.monto}`, "create");
+        updateBudgetFromEgreso(formData.cog, montoNumerico, formData.fecha);
+      } else {
+        console.error("Error creating egreso:", result.error);
+        // Fallback to local-only
+        const newEgreso: EgresoContable = {
+          id: Math.random().toString(36).substr(2, 9),
+          cog: formData.cog,
+          cuentaContable: formData.cuentaContable,
+          pagueseA: formData.pagueseA,
+          monto: montoNumerico,
+          concepto: formData.concepto,
+          fondo: formData.fondo,
+          institucionBancaria: formData.institucionBancaria,
+          cuentaBancaria: formData.cuentaBancaria,
+          estatus: "Pendiente",
+          fecha: formData.fecha,
+          poliza: formData.poliza || "",
+          tipo: tipoEgreso
+        };
+        setEgresosContables(prev => [newEgreso, ...prev]);
+        incrementPaymentOrderFolio();
+        addToLog("Egreso Registrado", `Se registró un egreso por ${newEgreso.monto}`, "create");
+        updateBudgetFromEgreso(formData.cog, montoNumerico, formData.fecha);
+      }
+    } catch (error) {
+      console.error("Error in handleSubmit:", error);
+      // Fallback to local-only on error
+      const newEgreso: EgresoContable = {
+        id: Math.random().toString(36).substr(2, 9),
+        cog: formData.cog,
+        cuentaContable: formData.cuentaContable,
+        pagueseA: formData.pagueseA,
+        monto: montoNumerico,
+        concepto: formData.concepto,
+        fondo: formData.fondo,
+        institucionBancaria: formData.institucionBancaria,
+        cuentaBancaria: formData.cuentaBancaria,
+        estatus: "Pendiente",
+        fecha: formData.fecha,
+        poliza: formData.poliza || "",
+        tipo: tipoEgreso
+      };
+      setEgresosContables(prev => [newEgreso, ...prev]);
+      incrementPaymentOrderFolio();
+      addToLog("Egreso Registrado", `Se registró un egreso por ${newEgreso.monto}`, "create");
+      updateBudgetFromEgreso(formData.cog, montoNumerico, formData.fecha);
+    }
 
     setOpen(false)
     setFormData({
@@ -488,7 +559,27 @@ export function AddEgresoDialog({ onSave }: { onSave?: (data: any) => void }) {
                       <Label htmlFor="monto" className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-200">Monto</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 font-bold text-slate-500 dark:text-slate-200">$</span>
-                        <Input id="monto" name="monto" type="number" step="0.01" value={formData.monto} onChange={handleChange} className="pl-7 font-bold" placeholder="0.00" required />
+                        <Input
+                          id="monto"
+                          name="monto"
+                          type="text"
+                          value={formData.monto}
+                          onChange={(e) => {
+                            // Remove non-numeric chars except dot
+                            const value = e.target.value.replace(/[^0-9.]/g, '');
+                            // Split integer and decimal parts
+                            const parts = value.split('.');
+                            // Add commas to integer part
+                            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                            // Reassemble
+                            const formatted = parts.slice(0, 2).join('.');
+
+                            setFormData(prev => ({ ...prev, monto: formatted }));
+                          }}
+                          className="pl-7 font-bold"
+                          placeholder="0.00"
+                          required
+                        />
                       </div>
                     </div>
                     <div className="grid gap-2">

@@ -73,20 +73,61 @@ export default function IngresosPage() {
     setConfirmAction(null);
   }
 
-  // Función que recibe los datos del Modal y actualiza la tabla (global)
-  const handleAddIngreso = (newIngreso: { concepto: string, fuente: string, monto: number, fecha: string, cuentaBancaria?: string, cri?: string, cuentaContable?: string, reporteAdicional?: any }) => {
-    const newItem: IngresoContable = {
-      id: Math.random().toString(36).substr(2, 9), // ID temporal aleatorio
-      ...newIngreso,
-      estado: "Pendiente" // Por defecto entra como pendiente
-    }
+  // Función que recibe los datos del Modal y los persiste a DB
+  const handleAddIngreso = async (newIngreso: { concepto: string, fuente: string, monto: number, fecha: string, cuentaBancaria?: string, cri?: string, cuentaContable?: string, reporteAdicional?: any }) => {
+    try {
+      // Import and call server action
+      const { createIngreso } = await import("@/app/actions/treasury");
+      const result = await createIngreso({
+        concepto: newIngreso.concepto,
+        fuente: newIngreso.fuente,
+        monto: newIngreso.monto,
+        estado: "Pendiente",
+        fecha: newIngreso.fecha,
+        cuentaBancaria: newIngreso.cuentaBancaria,
+        cri: newIngreso.cri,
+        cuentaContable: newIngreso.cuentaContable
+      });
 
-    // Agregamos el nuevo item al principio de la lista global
-    setIngresosContables([newItem, ...ingresosContables])
+      if (result.success && result.data) {
+        // Add to local state with DB-generated ID
+        const newItem: IngresoContable = {
+          id: result.data.id,
+          concepto: newIngreso.concepto,
+          fuente: newIngreso.fuente,
+          monto: newIngreso.monto,
+          estado: "Pendiente",
+          fecha: newIngreso.fecha,
+          cuentaBancaria: newIngreso.cuentaBancaria,
+          cri: newIngreso.cri,
+          cuentaContable: newIngreso.cuentaContable,
+          reporteAdicional: newIngreso.reporteAdicional
+        };
+        setIngresosContables([newItem, ...ingresosContables]);
 
-    // Actualizar la Ley de Ingresos si tenemos cuenta contable
-    if (newIngreso.cuentaContable) {
-      updateLeyIngresosFromIngreso(newIngreso.cuentaContable, newIngreso.monto, newIngreso.fecha)
+        // Actualizar la Ley de Ingresos si tenemos cuenta contable
+        if (newIngreso.cuentaContable) {
+          updateLeyIngresosFromIngreso(newIngreso.cuentaContable, newIngreso.monto, newIngreso.fecha);
+        }
+      } else {
+        console.error("Error creating ingreso:", result.error);
+        // Fallback: add to local state anyway with temp ID
+        const newItem: IngresoContable = {
+          id: Math.random().toString(36).substr(2, 9),
+          ...newIngreso,
+          estado: "Pendiente"
+        };
+        setIngresosContables([newItem, ...ingresosContables]);
+      }
+    } catch (error) {
+      console.error("Error in handleAddIngreso:", error);
+      // Fallback to local-only
+      const newItem: IngresoContable = {
+        id: Math.random().toString(36).substr(2, 9),
+        ...newIngreso,
+        estado: "Pendiente"
+      };
+      setIngresosContables([newItem, ...ingresosContables]);
     }
   }
 

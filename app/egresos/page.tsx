@@ -118,7 +118,8 @@ export default function EgresosPage() {
     firmantes,
     paymentOrderSigners,
     nextPaymentOrderFolio,
-    incrementPaymentOrderFolio
+    incrementPaymentOrderFolio,
+    fiscalConfig
   } = useTreasury();
 
   const router = useRouter();
@@ -322,7 +323,7 @@ export default function EgresosPage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => router.push(`/presupuesto/presupuesto-egresos?highlight=${egreso.cuentaContable}`)}
+                onClick={() => router.push(`/presupuesto/presupuesto-egresos?highlight=${egreso.cog}`)}
                 className="cursor-pointer text-emerald-700 focus:bg-emerald-50"
               >
                 <FileText className="mr-2 h-4 w-4" /> Ver en Presupuesto
@@ -448,7 +449,7 @@ export default function EgresosPage() {
                 </div>
 
                 <div className="col-span-8 text-center flex flex-col justify-center">
-                  <h2 className="text-sm font-bold uppercase tracking-wide">MUNICIPIO DE JOSE AZUETA, VER</h2>
+                  <h2 className="text-sm font-bold uppercase tracking-wide">{fiscalConfig.nombreEnte || "NOMBRE DEL ENTE"}</h2>
                   <h1 className="text-xl font-black uppercase mt-1 tracking-widest">ORDEN DE PAGO</h1>
                 </div>
 

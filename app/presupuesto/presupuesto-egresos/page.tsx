@@ -58,26 +58,100 @@ function PresupuestoEgresosContent() {
         }, [] as { item: PresupuestoItem, depth: number }[]);
     }, []);
 
-    // Helper to calculate flat items (memoized)
+
+    // Calculate contable amounts from approved egresos for each COG by month
+    const contableByMonth = React.useMemo(() => {
+        const monthKeys = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const result: Record<string, Record<string, number>> = {};
+
+        // Only count egresos that are "Pagado" (approved)
+        egresosContables
+            .filter(e => e.estatus === 'Pagado')
+            .forEach(egreso => {
+                const cog = egreso.cog;
+                if (!cog) return;
+
+                const date = new Date(egreso.fecha);
+                const monthIndex = date.getMonth();
+                const monthKey = `${monthKeys[monthIndex]}_contable`;
+
+                if (!result[cog]) {
+                    result[cog] = {};
+                }
+                result[cog][monthKey] = (result[cog][monthKey] || 0) + egreso.monto;
+            });
+
+        return result;
+    }, [egresosContables]);
+
+    // Enrich presupuesto items with contable values from egresos
+    const enrichedPresupuesto = React.useMemo(() => {
+        const enrichItem = (item: PresupuestoItem): PresupuestoItem => {
+            const cogContable = item.cog ? contableByMonth[item.cog] : {};
+            const enrichedSubcuentas = item.subcuentas?.map(enrichItem);
+
+            // Aggregate subcuentas contable values to parent
+            let aggregatedContable: Record<string, number> = { ...cogContable };
+            if (enrichedSubcuentas) {
+                enrichedSubcuentas.forEach(sub => {
+                    Object.keys(sub).forEach(key => {
+                        if (key.endsWith('_contable') && typeof (sub as any)[key] === 'number') {
+                            aggregatedContable[key] = (aggregatedContable[key] || 0) + ((sub as any)[key] || 0);
+                        }
+                    });
+                });
+            }
+
+            return {
+                ...item,
+                ...aggregatedContable,
+                subcuentas: enrichedSubcuentas
+            };
+        };
+
+        return presupuesto.map(enrichItem);
+    }, [presupuesto, contableByMonth]);
+
+    // Helper to calculate flat items (memoized) - now uses enriched presupuesto
     const flatPresupuesto = React.useMemo(() => {
-        let items = flattenItems(presupuesto);
+        let items = flattenItems(enrichedPresupuesto);
         // Implement filter logic if needed (currently UI has a filter button but no logic visible in code, assuming standard filter)
         // If there was a search term logic, it would go here.
         // For now, just return all flat items.
         return items;
-    }, [presupuesto, flattenItems]);
+    }, [enrichedPresupuesto, flattenItems]);
+
+    // Helper function to match COG codes flexibly
+    const matchesCog = React.useCallback((item: PresupuestoItem, targetCog: string): boolean => {
+        if (!targetCog) return false;
+        const itemCog = item.cog || '';
+        const itemCodigo = item.codigo || '';
+
+        // Exact match
+        if (itemCog === targetCog || itemCodigo === targetCog) return true;
+
+        // COG starts with target (e.g., item.cog "26103" matches target "26103")
+        if (itemCog && itemCog.startsWith(targetCog)) return true;
+        if (itemCodigo && itemCodigo.includes(targetCog)) return true;
+
+        // Target contains item COG (e.g., target "26103" contains item.cog "26103")
+        if (itemCog && targetCog.includes(itemCog) && itemCog.length >= 4) return true;
+
+        // For COG format like "1.2.3.4.26103", extract the last part
+        const targetParts = targetCog.split('.');
+        const lastPart = targetParts[targetParts.length - 1];
+        if (itemCog === lastPart) return true;
+
+        return false;
+    }, []);
 
     // Detectar si hay un COG para highlight y aplicar animación
     React.useEffect(() => {
         if (highlightCog) {
             setHighlightedRow(highlightCog)
 
-            // Find index and force load if needed
-            const index = flatPresupuesto.findIndex(({ item }) =>
-                item.cog === highlightCog || item.codigo === highlightCog ||
-                (item.cog && highlightCog.includes(item.cog)) ||
-                (item.codigo && highlightCog.includes(item.codigo))
-            )
+            // Find index and force load if needed using improved matching
+            const index = flatPresupuesto.findIndex(({ item }) => matchesCog(item, highlightCog))
 
             if (index !== -1 && index >= visibleCount) {
                 setVisibleCount(index + 50)
@@ -108,7 +182,7 @@ function PresupuestoEgresosContent() {
             const timer = setTimeout(() => setHighlightedRow(null), 3000)
             return () => clearTimeout(timer)
         }
-    }, [highlightCog, flatPresupuesto]) // Added dependency
+    }, [highlightCog, flatPresupuesto, matchesCog]) // Added dependency
 
     // Infinite Scroll Observer
     React.useEffect(() => {
@@ -180,15 +254,12 @@ function PresupuestoEgresosContent() {
                                             key={egreso.id}
                                             className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer border border-transparent hover:border-emerald-300"
                                             onClick={() => {
-                                                const highlightValue = egreso.cuentaContable
+                                                // Use egreso.cog for better matching with presupuesto items
+                                                const highlightValue = egreso.cog || egreso.cuentaContable
                                                 setHighlightedRow(highlightValue)
 
-                                                // Ensure loaded
-                                                const index = flatPresupuesto.findIndex(({ item }) =>
-                                                    item.cog === highlightValue || item.codigo === highlightValue ||
-                                                    (item.cog && highlightValue.includes(item.cog)) ||
-                                                    (item.codigo && highlightValue.includes(item.codigo))
-                                                )
+                                                // Ensure loaded using matchesCog
+                                                const index = flatPresupuesto.findIndex(({ item }) => matchesCog(item, highlightValue))
                                                 if (index !== -1 && index >= visibleCount) {
                                                     setVisibleCount(index + 50)
                                                 }
@@ -270,15 +341,8 @@ function PresupuestoEgresosContent() {
                                             let rowClass = "border-b border-gray-200 transition-all duration-500 group";
                                             let stickyBg = "";
 
-                                            // Agregar clase de highlight si coincide
-                                            // Comparar con ambos: el COG corto y el código completo (cuenta contable)
-                                            const isHighlighted = highlightedRow && (
-                                                item.cog === highlightedRow ||
-                                                item.codigo === highlightedRow ||
-                                                // También buscar si el cog del item contiene el highlight
-                                                (item.cog && highlightedRow.includes(item.cog)) ||
-                                                (item.codigo && highlightedRow.includes(item.codigo))
-                                            );
+                                            // Agregar clase de highlight si coincide usando matchesCog
+                                            const isHighlighted = highlightedRow && matchesCog(item, highlightedRow);
                                             if (isHighlighted) {
                                                 rowClass += " animate-pulse bg-emerald-200 ring-2 ring-emerald-400";
                                             }

@@ -302,11 +302,141 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     const [systemLog, setSystemLog] = useState<LogEntry[]>(DATA_LOG);
     const [ingresosContables, setIngresosContables] = useState<IngresoContable[]>(INITIAL_INGRESOS);
     const [egresosContables, setEgresosContables] = useState<EgresoContable[]>(INITIAL_EGRESOS);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+
+    // Hydrate from Database
+    React.useEffect(() => {
+        const loadData = async () => {
+            setIsLoadingData(true);
+            try {
+                // Import server actions dynamically to avoid SSR issues
+                const {
+                    getIngresos,
+                    getEgresos,
+                    getFuentes,
+                    getDepartamentos,
+                    getAllSystemConfig,
+                    getFirmantes,
+                    getNextPaymentOrderFolio
+                } = await import("@/app/actions/treasury");
+
+                // Fetch from DB
+                const [
+                    ingresosRes,
+                    egresosRes,
+                    fuentesRes,
+                    departamentosRes,
+                    configRes,
+                    firmantesRes,
+                    folioRes
+                ] = await Promise.all([
+                    getIngresos(),
+                    getEgresos(),
+                    getFuentes(),
+                    getDepartamentos(),
+                    getAllSystemConfig(),
+                    getFirmantes(),
+                    getNextPaymentOrderFolio()
+                ]);
+
+                if (ingresosRes.success && ingresosRes.data) {
+                    // Transform DB data to match context types (handle Decimal -> number)
+                    const ingresos = ingresosRes.data.map((i: any) => ({
+                        id: i.id,
+                        concepto: i.concepto,
+                        fuente: i.fuente,
+                        monto: Number(i.monto),
+                        estado: i.estado as "Completado" | "Pendiente" | "Procesando",
+                        fecha: new Date(i.fecha).toISOString().split('T')[0],
+                        cuentaBancaria: i.cuentaBancaria || undefined
+                    }));
+                    setIngresosContables(ingresos);
+                }
+
+                if (egresosRes.success && egresosRes.data) {
+                    const egresos = egresosRes.data.map((e: any) => ({
+                        id: e.id,
+                        cog: e.cog,
+                        cuentaContable: e.cuentaContable,
+                        pagueseA: e.pagueseA,
+                        monto: Number(e.monto),
+                        concepto: e.concepto,
+                        fondo: e.fondo,
+                        institucionBancaria: e.institucionBancaria,
+                        cuentaBancaria: e.cuentaBancaria,
+                        fecha: new Date(e.fecha).toISOString().split('T')[0],
+                        tipo: e.tipo as "Manual" | "Bancario",
+                        estatus: e.estatus as "Pendiente" | "Pagado" | "Cancelado",
+                        folioOrden: e.folioOrden || undefined,
+                        departamento: e.departamento || undefined,
+                        area: e.area || undefined
+                    }));
+                    setEgresosContables(egresos);
+                }
+
+                // Load Fuentes from DB (if available) or keep initial
+                if (fuentesRes.success && fuentesRes.data && fuentesRes.data.length > 0) {
+                    setFuentes(fuentesRes.data);
+                }
+
+                // Load Departamentos from DB (if available) or keep initial
+                if (departamentosRes.success && departamentosRes.data && departamentosRes.data.length > 0) {
+                    setDepartamentos(departamentosRes.data);
+                }
+
+                // Load System Config from DB
+                if (configRes.success && configRes.data) {
+                    const cfg = configRes.data as Record<string, string>;
+                    // Set logos
+                    if (cfg['logoLeft'] || cfg['logoRight']) {
+                        setConfig({
+                            logoLeft: cfg['logoLeft'] || "",
+                            logoRight: cfg['logoRight'] || ""
+                        });
+                    }
+                    // Set fiscal config
+                    setFiscalConfig({
+                        nombreEnte: cfg['nombreEnte'] || "",
+                        rfc: cfg['rfc'] || "",
+                        regimen: cfg['regimen'] || "",
+                        cp: cfg['cp'] || "",
+                        domicilio: cfg['domicilio'] || ""
+                    });
+                    // Set payment order signers
+                    if (cfg['paymentOrderSigners']) {
+                        try {
+                            setPaymentOrderSigners(JSON.parse(cfg['paymentOrderSigners']));
+                        } catch (e) {
+                            console.warn("Error parsing paymentOrderSigners:", e);
+                        }
+                    }
+                }
+
+                // Load Firmantes from DB
+                if (firmantesRes.success && firmantesRes.data) {
+                    setFirmantes(firmantesRes.data);
+                }
+
+                // Load Next Folio from DB
+                if (folioRes.success && folioRes.data) {
+                    setNextPaymentOrderFolio(folioRes.data);
+                }
+            } catch (error) {
+                console.error("Error fetching data from DB:", error);
+            } finally {
+                setIsLoadingData(false);
+            }
+        };
+
+        loadData();
+    }, []);
     const [fuentes, setFuentes] = useState<Fuente[]>(INITIAL_FUENTES);
     const [origenes, setOrigenes] = useState<string[]>(INITIAL_ORIGENES);
     const [departamentos, setDepartamentos] = useState<Departamento[]>(INITIAL_DEPARTAMENTOS);
     const [presupuesto, setPresupuesto] = useState<PresupuestoItem[]>(INITIAL_PRESUPUESTO);
-    const [leyIngresos, setLeyIngresos] = useState<PresupuestoItem[]>(INITIAL_LEY_INGRESOS); // New state for Ley de Ingresos
+    const [leyIngresos, setLeyIngresos] = useState<PresupuestoItem[]>(INITIAL_LEY_INGRESOS);
+
+    // Config states (loaded from DB)
     const [config, setConfig] = useState({ logoLeft: "", logoRight: "" });
     const [fiscalConfig, setFiscalConfig] = useState({
         nombreEnte: "",
@@ -316,16 +446,22 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         domicilio: ""
     });
 
-    // Performance: Load heavy data asynchronously
+    // Performance: Load heavy data asynchronously using requestIdleCallback for better responsiveness
     React.useEffect(() => {
-        // Use setTimeout to push this to the next tick, unblocking the main thread for initial render
-        setTimeout(() => {
+        const loadHeavyData = () => {
             const cogTree = buildCOGTree(RAW_COG_DATA);
             setPresupuesto(prev => prev.length === 0 ? cogTree : prev);
 
             const criTree = buildCRITree(RAW_CRI_DATA);
             setLeyIngresos(prev => prev.length === 0 ? criTree : prev);
-        }, 0);
+        };
+
+        // Use requestIdleCallback for better performance, fall back to setTimeout
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(loadHeavyData, { timeout: 100 });
+        } else {
+            setTimeout(loadHeavyData, 0);
+        }
     }, []);
 
     const [firmantes, setFirmantes] = useState<Firmante[]>([]);
@@ -337,19 +473,57 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     });
     const [nextPaymentOrderFolio, setNextPaymentOrderFolio] = useState(1);
 
-    const incrementPaymentOrderFolio = () => {
-        setNextPaymentOrderFolio(prev => prev + 1);
-        addToLog("Folio Incrementado", `Folio de Orden de Pago actualizado a ${nextPaymentOrderFolio + 1}`, "update");
+    const incrementPaymentOrderFolio = async () => {
+        try {
+            const { incrementPaymentOrderFolio: incrementFolioAction } = await import("@/app/actions/treasury");
+            const result = await incrementFolioAction();
+            if (result.success && result.data) {
+                // result.data contains the current (pre-increment) folio
+                setNextPaymentOrderFolio(result.data + 1);
+                addToLog("Folio Incrementado", `Folio de Orden de Pago actualizado a ${result.data + 1}`, "update");
+            }
+        } catch (error) {
+            console.error("Error incrementing folio:", error);
+            // Fallback to optimistic update
+            setNextPaymentOrderFolio(prev => prev + 1);
+            addToLog("Folio Incrementado", `Folio de Orden de Pago actualizado a ${nextPaymentOrderFolio + 1}`, "update");
+        }
     };
 
-    const addFuente = (fuente: Fuente) => {
-        setFuentes(prev => [...prev, fuente]);
-        addToLog("Fondo Agregado", `Se agregó el fondo ${fuente.acronimo}`, "create");
+    const addFuente = async (fuente: Fuente) => {
+        try {
+            const { createFuente } = await import("@/app/actions/treasury");
+            const result = await createFuente({
+                acronimo: fuente.acronimo,
+                nombre: fuente.nombre,
+                origen: fuente.origen
+            });
+            if (result.success && result.data) {
+                setFuentes(prev => [...prev, result.data]);
+                addToLog("Fondo Agregado", `Se agregó el fondo ${fuente.acronimo}`, "create");
+            }
+        } catch (error) {
+            console.error("Error adding fuente:", error);
+            // Optimistic update as fallback
+            setFuentes(prev => [...prev, fuente]);
+            addToLog("Fondo Agregado", `Se agregó el fondo ${fuente.acronimo}`, "create");
+        }
     }
 
-    const deleteFuente = (id: string) => {
-        setFuentes(prev => prev.filter(f => f.id !== id));
-        addToLog("Fondo Eliminado", `Se eliminó un fondo`, "delete");
+    const deleteFuenteHandler = async (id: string) => {
+        try {
+            const { deleteFuente: deleteFuenteAction } = await import("@/app/actions/treasury");
+            const result = await deleteFuenteAction(id);
+            if (result.success) {
+                setFuentes(prev => prev.filter(f => f.id !== id));
+                addToLog("Fondo Eliminado", `Se eliminó un fondo`, "delete");
+            }
+        } catch (error) {
+            console.error("Error deleting fuente:", error);
+            // Optimistic update as fallback
+            setFuentes(prev => prev.filter(f => f.id !== id));
+            addToLog("Fondo Eliminado", `Se eliminó un fondo`, "delete");
+        }
     }
 
     const addOrigen = (origen: string) => {
@@ -362,24 +536,57 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         addToLog("Fuente Eliminada", `Se eliminó la fuente ${origen}`, "delete");
     }
 
-    const addDepartamento = (nombre: string, areas: string[] = []) => {
-        const newDept: Departamento = {
-            id: `dept-${Date.now()}`,
-            nombre,
-            areas
-        };
-        setDepartamentos(prev => [...prev, newDept]);
-        addToLog("Departamento Agregado", `Se agregó el departamento ${nombre}`, "create");
+    const addDepartamento = async (nombre: string, areas: string[] = []) => {
+        try {
+            const { createDepartamento } = await import("@/app/actions/treasury");
+            const result = await createDepartamento({ nombre, areas });
+            if (result.success && result.data) {
+                setDepartamentos(prev => [...prev, result.data]);
+                addToLog("Departamento Agregado", `Se agregó el departamento ${nombre}`, "create");
+            }
+        } catch (error) {
+            console.error("Error adding departamento:", error);
+            // Optimistic update as fallback
+            const newDept: Departamento = {
+                id: `dept-${Date.now()}`,
+                nombre,
+                areas
+            };
+            setDepartamentos(prev => [...prev, newDept]);
+            addToLog("Departamento Agregado", `Se agregó el departamento ${nombre}`, "create");
+        }
     }
 
-    const updateDepartamento = (id: string, nombre: string) => {
-        setDepartamentos(prev => prev.map(d => d.id === id ? { ...d, nombre } : d));
-        addToLog("Departamento Actualizado", `Se actualizó el departamento ${nombre}`, "update");
+    const updateDepartamento = async (id: string, nombre: string, areas: string[] = []) => {
+        try {
+            const { updateDepartamento: updateDepartamentoAction } = await import("@/app/actions/treasury");
+            const result = await updateDepartamentoAction(id, { nombre, areas });
+            if (result.success) {
+                setDepartamentos(prev => prev.map(d => d.id === id ? { ...d, nombre, areas } : d));
+                addToLog("Departamento Actualizado", `Se actualizó el departamento ${nombre}`, "update");
+            }
+        } catch (error) {
+            console.error("Error updating departamento:", error);
+            // Optimistic update as fallback
+            setDepartamentos(prev => prev.map(d => d.id === id ? { ...d, nombre, areas } : d));
+            addToLog("Departamento Actualizado", `Se actualizó el departamento ${nombre}`, "update");
+        }
     }
 
-    const deleteDepartamento = (id: string) => {
-        setDepartamentos(prev => prev.filter(d => d.id !== id));
-        addToLog("Departamento Eliminado", `Se eliminó un departamento`, "delete");
+    const deleteDepartamento = async (id: string) => {
+        try {
+            const { deleteDepartamentoAction } = await import("@/app/actions/treasury");
+            const result = await deleteDepartamentoAction(id);
+            if (result.success) {
+                setDepartamentos(prev => prev.filter(d => d.id !== id));
+                addToLog("Departamento Eliminado", `Se eliminó un departamento`, "delete");
+            }
+        } catch (error) {
+            console.error("Error deleting departamento:", error);
+            // Optimistic update as fallback
+            setDepartamentos(prev => prev.filter(d => d.id !== id));
+            addToLog("Departamento Eliminado", `Se eliminó un departamento`, "delete");
+        }
     }
 
     // Recursive helper to add item to tree
@@ -458,15 +665,23 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         setSystemLog(prev => [newEntry, ...prev]);
     };
 
-    const approveTransaction = (id: string, type: "Ingreso" | "Egreso") => {
+    const approveTransaction = async (id: string, type: "Ingreso" | "Egreso") => {
         if (type === "Egreso") {
             const egreso = egresosContables.find(e => e.id === id);
             if (!egreso || egreso.estatus !== "Pendiente") return;
 
-            // 1. Update Egreso Status
+            // 1. Update Egreso Status in DB first
+            try {
+                const { updateEgreso } = await import("@/app/actions/treasury");
+                await updateEgreso(id, { estatus: "Pagado" });
+            } catch (error) {
+                console.error("Error persisting egreso approval:", error);
+            }
+
+            // 2. Update local state
             setEgresosContables(prev => prev.map(e => e.id === id ? { ...e, estatus: "Pagado" } : e));
 
-            // 2. Update Bank Account
+            // 3. Update Bank Account
             setCuentas(prev => prev.map(acc => {
                 // Robust Match: ID, Number, Alias, or Bank Name
                 const target = egreso.cuentaBancaria;
@@ -494,6 +709,10 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
                 }
                 return acc;
             }));
+
+            // 4. Update Presupuesto de Egresos - reflect the amount in the COG partida by month
+            updateBudgetFromEgreso(egreso.cog, egreso.monto, egreso.fecha);
+
             addToLog("Egreso Aprobado", `Egreso ${id} aprobado y descontado`, "update");
         } else {
             // INGRESO LOGIC
@@ -501,19 +720,19 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
             // Note: Ingresocontable uses 'estado'
             if (!ingreso || ingreso.estado !== "Pendiente") return;
 
+            // 1. Update Ingreso Status in DB first
+            try {
+                const { updateIngreso } = await import("@/app/actions/treasury");
+                await updateIngreso(id, { estado: "Completado" });
+            } catch (error) {
+                console.error("Error persisting ingreso approval:", error);
+            }
+
             setIngresosContables(prev => prev.map(i => i.id === id ? { ...i, estado: "Completado" } : i));
 
             // 2. Update Bank Account for Ingreso
-            // Note: We need 'cuentaBancaria' field in IngresoContable or 'fuente' logic.
-            // Assuming we will add 'cuentaBancaria' prop to IngresoContable in 'add-ingreso-dialog'.
-            // Assuming we will add 'cuentaBancaria' to IngresoContable type as well.
-            // For now, I will optimistically check 'fuente' or 'id' if we start saving ID there.
-            // Wait, I need to update IngresoContable Type too! I will do that in next step. 
-            // For now, I'll put the logic assuming 'fuente' holds the Account ID (which is the plan).
-
             setCuentas(prev => prev.map(acc => {
-                const target = ingreso.cuentaBancaria; // Assuming we save Account ID in 'fuente' or 'cuentaBancaria' field (to be added)
-                // Let's use robust matching again just in case.
+                const target = ingreso.cuentaBancaria;
                 const isMatch = acc.id === target || acc.numeroCuenta === target || acc.alias === target;
 
                 if (isMatch) {
@@ -540,12 +759,31 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const rejectTransaction = (id: string, type: "Ingreso" | "Egreso") => {
+    const rejectTransaction = async (id: string, type: "Ingreso" | "Egreso") => {
         if (type === "Egreso") {
+            // 1. Update Egreso Status in DB first (persistent)
+            try {
+                const { updateEgreso } = await import("@/app/actions/treasury");
+                await updateEgreso(id, { estatus: "Cancelado" });
+            } catch (error) {
+                console.error("Error persisting egreso rejection:", error);
+            }
+
+            // 2. Update local state
             setEgresosContables(prev => prev.map(e => e.id === id ? { ...e, estatus: "Cancelado" } : e));
             addToLog("Egreso Rechazado", `Egreso ${id} cancelado`, "delete");
         } else {
-            setIngresosContables(prev => prev.map(i => i.id === id ? { ...i, estado: "Procesando" } : i)); // Or equivalent to Cancelado
+            // 1. Update Ingreso Status in DB first (persistent)
+            try {
+                const { updateIngreso } = await import("@/app/actions/treasury");
+                await updateIngreso(id, { estado: "Procesando" });
+            } catch (error) {
+                console.error("Error persisting ingreso rejection:", error);
+            }
+
+            // 2. Update local state
+            setIngresosContables(prev => prev.map(i => i.id === id ? { ...i, estado: "Procesando" } : i));
+            addToLog("Ingreso Rechazado", `Ingreso ${id} cancelado`, "delete");
         }
     };
 
@@ -590,7 +828,7 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         systemLog, setSystemLog, addToLog,
         ingresosContables, setIngresosContables,
         egresosContables, setEgresosContables,
-        fuentes, addFuente, deleteFuente,
+        fuentes, addFuente, deleteFuente: deleteFuenteHandler,
         origenes, addOrigen, deleteOrigen,
         departamentos, addDepartamento, updateDepartamento, deleteDepartamento,
         presupuesto,

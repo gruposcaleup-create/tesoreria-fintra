@@ -4,7 +4,7 @@ import React, { useState } from "react"
 import {
     Building2, Users, ShieldCheck, CreditCard,
     Save, Upload, Plus, Trash2, Lock, Check,
-    Palette, Moon, Sun, Laptop, FileText
+    Palette, Moon, Sun, Laptop, FileText, Loader2
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -28,6 +28,16 @@ export default function SettingsModule() {
     const { toast } = useToast()
     const { config, setConfig, addToLog, fiscalConfig, setFiscalConfig, firmantes, setFirmantes, paymentOrderSigners, setPaymentOrderSigners } = useTreasury()
 
+    // Loading states for save buttons
+    const [isSavingProfile, setIsSavingProfile] = useState(false)
+    const [isSavingReports, setIsSavingReports] = useState(false)
+    const [isSavingSigners, setIsSavingSigners] = useState(false)
+
+    // Success states for save buttons
+    const [savedProfile, setSavedProfile] = useState(false)
+    const [savedReports, setSavedReports] = useState(false)
+    const [savedSigners, setSavedSigners] = useState(false)
+
     // Estado local para firmantes de póliza de pago
     const [localPaymentOrderSigners, setLocalPaymentOrderSigners] = useState(paymentOrderSigners)
 
@@ -41,26 +51,56 @@ export default function SettingsModule() {
         setConfig(prev => ({ ...prev, [side === "left" ? "logoLeft" : "logoRight"]: value }));
     };
 
-    const handleSavePaymentOrderSigners = () => {
-        setPaymentOrderSigners(localPaymentOrderSigners)
-        addToLog("Configuración Actualizada", "Se actualizaron los firmantes de póliza de pago", "update")
-        toast({
-            title: "Cambios Guardados Exitosamente",
-            description: "Los firmantes de póliza se han actualizado correctamente.",
-            duration: 3000
-        })
+    const handleSavePaymentOrderSigners = async () => {
+        setIsSavingSigners(true)
+        try {
+            const { setSystemConfig } = await import("@/app/actions/treasury")
+            // Save payment order signers as JSON to DB
+            await setSystemConfig('paymentOrderSigners', JSON.stringify(localPaymentOrderSigners))
+            setPaymentOrderSigners(localPaymentOrderSigners)
+            addToLog("Configuración Actualizada", "Se actualizaron los firmantes de póliza de pago en la base de datos", "update")
+            toast({
+                title: "Cambios Guardados Exitosamente",
+                description: "Los firmantes de póliza se han actualizado correctamente.",
+                duration: 3000
+            })
+        } catch (error) {
+            console.error("Error saving payment order signers:", error)
+            toast({ title: "Error", description: "No se pudieron guardar los firmantes.", variant: "destructive" })
+        }
+        setIsSavingSigners(false)
+        setSavedSigners(true)
+        setTimeout(() => setSavedSigners(false), 1500)
     }
 
-    const removeSigner = (id: string) => {
-        setFirmantes(prev => prev.filter(s => s.id !== id));
-        addToLog("Firmante Eliminado", "Se eliminó un firmante de la configuración", "delete");
-        toast({ title: "Firmante Eliminado", description: "El firmante ha sido removido correctamente." });
-    };
+    const removeSigner = async (id: string) => {
+        try {
+            const { deleteFirmanteAction } = await import("@/app/actions/treasury")
+            const result = await deleteFirmanteAction(id)
+            if (result.success) {
+                setFirmantes(prev => prev.filter(s => s.id !== id))
+                addToLog("Firmante Eliminado", "Se eliminó un firmante de la configuración", "delete")
+                toast({ title: "Firmante Eliminado", description: "El firmante ha sido removido correctamente." })
+            }
+        } catch (error) {
+            console.error("Error removing signer:", error)
+            toast({ title: "Error", description: "No se pudo eliminar el firmante.", variant: "destructive" })
+        }
+    }
 
-    const addSigner = () => {
-        setFirmantes(prev => [...prev, { id: Date.now().toString(), nombre: "Nuevo Firmante", puesto: "Cargo" }]);
-        addToLog("Firmante Agregado", "Se agregó un nuevo firmante", "create");
-    };
+    const addSigner = async () => {
+        try {
+            const { createFirmante } = await import("@/app/actions/treasury")
+            const result = await createFirmante({ nombre: "Nuevo Firmante", puesto: "Cargo" })
+            if (result.success && result.data) {
+                setFirmantes(prev => [...prev, result.data])
+                addToLog("Firmante Agregado", "Se agregó un nuevo firmante", "create")
+            }
+        } catch (error) {
+            console.error("Error adding signer:", error)
+            toast({ title: "Error", description: "No se pudo agregar el firmante.", variant: "destructive" })
+        }
+    }
 
     return (
         <div className="flex flex-col gap-6 p-2 md:p-6 bg-slate-50/50 dark:bg-black min-h-screen">
@@ -189,12 +229,32 @@ export default function SettingsModule() {
                                 <CardFooter className="border-t px-6 py-4 flex justify-end">
                                     <Button
                                         className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-100"
-                                        onClick={() => {
-                                            addToLog("Perfil Actualizado", "Se guardaron los datos fiscales", "update")
-                                            toast({ title: "Perfil Actualizado", description: "Los datos fiscales se han guardado correctamente.", duration: 3000 })
+                                        disabled={isSavingProfile}
+                                        onClick={async () => {
+                                            setIsSavingProfile(true)
+                                            try {
+                                                const { setSystemConfig } = await import("@/app/actions/treasury")
+                                                // Save each fiscal config field to DB
+                                                await Promise.all([
+                                                    setSystemConfig('nombreEnte', fiscalConfig.nombreEnte),
+                                                    setSystemConfig('rfc', fiscalConfig.rfc),
+                                                    setSystemConfig('regimen', fiscalConfig.regimen),
+                                                    setSystemConfig('cp', fiscalConfig.cp),
+                                                    setSystemConfig('domicilio', fiscalConfig.domicilio)
+                                                ])
+                                                addToLog("Perfil Actualizado", "Se guardaron los datos fiscales en la base de datos", "update")
+                                                toast({ title: "Perfil Actualizado", description: "Los datos fiscales se han guardado correctamente.", duration: 3000 })
+                                            } catch (error) {
+                                                console.error("Error saving fiscal config:", error)
+                                                toast({ title: "Error", description: "No se pudieron guardar los datos fiscales.", variant: "destructive" })
+                                            }
+                                            setIsSavingProfile(false)
+                                            setSavedProfile(true)
+                                            setTimeout(() => setSavedProfile(false), 1500)
                                         }}
                                     >
-                                        <Save className="w-4 h-4 mr-2" /> Guardar Cambios
+                                        {isSavingProfile ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : savedProfile ? <Check className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                        {isSavingProfile ? "Guardando..." : savedProfile ? "Cambios Guardados" : "Guardar Cambios"}
                                     </Button>
                                 </CardFooter>
                             </Card>
@@ -236,12 +296,29 @@ export default function SettingsModule() {
                             </p>
                             <Button
                                 className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-100"
-                                onClick={() => {
-                                    addToLog("Configuración Actualizada", "Se actualizaron los logos de reportes", "update")
-                                    toast({ title: "Configuración Guardada", description: "Los logotipos se han actualizado correctamente.", duration: 3000 })
+                                disabled={isSavingReports}
+                                onClick={async () => {
+                                    setIsSavingReports(true)
+                                    try {
+                                        const { setSystemConfig } = await import("@/app/actions/treasury")
+                                        // Save logos to DB
+                                        await Promise.all([
+                                            setSystemConfig('logoLeft', config.logoLeft),
+                                            setSystemConfig('logoRight', config.logoRight)
+                                        ])
+                                        addToLog("Configuración Actualizada", "Se actualizaron los logos de reportes en la base de datos", "update")
+                                        toast({ title: "Configuración Guardada", description: "Los logotipos se han actualizado correctamente.", duration: 3000 })
+                                    } catch (error) {
+                                        console.error("Error saving logos:", error)
+                                        toast({ title: "Error", description: "No se pudieron guardar los logos.", variant: "destructive" })
+                                    }
+                                    setIsSavingReports(false)
+                                    setSavedReports(true)
+                                    setTimeout(() => setSavedReports(false), 1500)
                                 }}
                             >
-                                <Save className="w-4 h-4 mr-2" /> Guardar Configuración
+                                {isSavingReports ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : savedReports ? <Check className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                {isSavingReports ? "Guardando..." : savedReports ? "Cambios Guardados" : "Guardar Configuración"}
                             </Button>
                         </CardFooter>
                     </Card>
@@ -354,9 +431,11 @@ export default function SettingsModule() {
                         <CardFooter className="border-t px-6 py-4 flex justify-end">
                             <Button
                                 className="bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-100"
+                                disabled={isSavingSigners}
                                 onClick={handleSavePaymentOrderSigners}
                             >
-                                <Save className="w-4 h-4 mr-2" /> Guardar Cambios
+                                {isSavingSigners ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : savedSigners ? <Check className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                {isSavingSigners ? "Guardando..." : savedSigners ? "Cambios Guardados" : "Guardar Cambios"}
                             </Button>
                         </CardFooter>
                     </Card>

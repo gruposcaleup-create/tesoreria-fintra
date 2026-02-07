@@ -203,6 +203,8 @@ model IngresoContable {
   estado            String        // Completado, Pendiente, Procesando
   fecha             DateTime
   cuentaBancaria    String?       // Reference to bank account
+  cri               String?       // Clasificador de Rubro de Ingreso
+  cuentaContable    String?       // Cuenta Contable
   
   // Relations
   transactions      Transaction[]
@@ -225,6 +227,7 @@ model EgresoContable {
   tipo                String        // Manual, Bancario
   estatus             String        // Pendiente, Pagado, Cancelado
   folioOrden          Int?
+  polizaNumero        String?       // Formatted Folio string e.g., P-2024-001
   departamento        String?
   area                String?
   

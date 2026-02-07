@@ -541,7 +541,7 @@ function LeyIngresosContent() {
                     </style>
                     <div className="mb-6">
                         <h1 className="text-2xl font-bold text-gray-900">Ley de Ingresos - Reporte Detallado</h1>
-                        <p className="text-sm text-gray-500">Generado el: {new Date().toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-500" suppressHydrationWarning>Generado el: {new Date().toLocaleDateString()}</p>
                     </div>
                     <table className="w-full border-collapse text-[10px]">
                         <thead>
