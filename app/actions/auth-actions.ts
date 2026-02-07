@@ -8,8 +8,7 @@ export async function authenticate(
     formData: FormData,
 ) {
     try {
-        const redirectTo = 'https://tesoreria-fintra1.vercel.app';
-        await signIn('credentials', { ...Object.fromEntries(formData), redirectTo });
+        await signIn('credentials', { ...Object.fromEntries(formData), redirect: true, redirectTo: '/' });
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
