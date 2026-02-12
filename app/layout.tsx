@@ -43,8 +43,7 @@ export default function RootLayout({
               {children}
             </TreasuryProvider>
             <Toaster />
-            {/* TODO: Remove this debug component after fixing auth */}
-            <DebugSession />
+
           </ThemeProvider>
         </SessionProvider>
         <Analytics />
