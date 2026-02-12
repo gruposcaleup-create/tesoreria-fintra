@@ -150,10 +150,12 @@ export async function register(prevState: string | undefined, formData: FormData
     const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()))
 
     if (!validatedFields.success) {
+        console.error("Registration Validation Error:", validatedFields.error.flatten());
         return "Campos inválidos. Revisa los datos."
     }
 
     const { name, email, password } = validatedFields.data
+    console.log("Attempting registration for:", email);
 
     try {
         const userExists = await (prisma as any).user.findUnique({

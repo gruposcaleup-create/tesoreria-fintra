@@ -66,7 +66,7 @@ export default function SignupPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="role">Rol / Cargo</Label>
-                  <Input id="role" name="role" type="text" placeholder="Ej. Tesorero" required />
+                  <Input id="role" name="role" type="text" placeholder="Ej. Tesorero" />
                 </div>
 
                 <div className="grid gap-2">

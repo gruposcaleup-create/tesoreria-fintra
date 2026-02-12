@@ -31,6 +31,7 @@ import {
 
 import { signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { signOutAction } from "@/app/actions/auth-actions"
 
 export function NavUser({
   user,
@@ -58,9 +59,13 @@ export function NavUser({
     return name.substring(0, 2).toUpperCase()
   }
 
+
+
+  // ... inside component ...
+
   const handleLogout = async () => {
-    await signOut({ redirect: false })
-    window.location.href = "/login"
+    await signOutAction()
+    // The server action handles the redirect
   }
 
   const goToSettings = (tab: string) => {

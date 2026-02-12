@@ -119,7 +119,10 @@ const baseData = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+
+  console.log("Sidebar Session Status:", status);
+  console.log("Sidebar Session Data:", session);
 
   // Datos del usuario desde la sesión real
   const user = {
