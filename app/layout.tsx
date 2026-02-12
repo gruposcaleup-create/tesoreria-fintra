@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TreasuryProvider } from '@/components/providers/treasury-context'
 import { Toaster } from "@/components/ui/toaster"
 import { SessionProvider } from "next-auth/react"
-import DebugSession from "@/components/debug-session"
+
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
