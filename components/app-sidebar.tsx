@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { usePathname } from "next/navigation" // <--- IMPORTANTE
+import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   IconChartBar,
   IconDashboard,
@@ -33,13 +34,8 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 
-// Definimos los datos base (sin isActive fijo)
+// Definimos los datos base de navegación (sin isActive fijo)
 const baseData = {
-  user: {
-    name: "Tesorero",
-    email: "tesoreria@municipio.gob.mx",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -100,15 +96,47 @@ const baseData = {
     { name: "Presupuesto de Egresos", url: "/presupuesto/presupuesto-egresos", icon: IconCoins },
     { name: "Proveedores", url: "/proveedores", icon: IconReport },
   ],
+  navReports: [
+    {
+      title: "Reportes ASF",
+      url: "/reportes-asf",
+      icon: IconReport,
+      items: [
+        { title: "Global ASF", url: "/reportes-asf" },
+        { title: "CAP.1000", url: "/reportes-asf/cap-1000" },
+        { title: "CAP.2000", url: "/reportes-asf/cap-2000" },
+        { title: "CAP.3000", url: "/reportes-asf/cap-3000" },
+        { title: "CAP.4000", url: "/reportes-asf/cap-4000" },
+        { title: "CAP.5000", url: "/reportes-asf/cap-5000" },
+        { title: "CAP.6000", url: "/reportes-asf/cap-6000" },
+        { title: "CAP.7000", url: "/reportes-asf/cap-7000" },
+        { title: "CAP.8000", url: "/reportes-asf/cap-8000" },
+        { title: "CAP.9000", url: "/reportes-asf/cap-9000" },
+      ],
+    },
+  ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const pathname = usePathname() // Obtenemos la ruta actual
+  const pathname = usePathname()
+  const { data: session } = useSession()
+
+  // Datos del usuario desde la sesión real
+  const user = {
+    name: session?.user?.name || session?.user?.email || "Usuario",
+    email: session?.user?.email || "",
+    avatar: "/avatars/shadcn.jpg",
+  }
 
   // Lógica Dinámica: Activamos el menú si la ruta actual coincide con la del item
   const navMainWithActiveState = baseData.navMain.map((item) => ({
     ...item,
     // Está activo si: Tiene subitems Y la ruta actual empieza con la url del padre
+    isActive: item.items ? pathname.startsWith(item.url) : pathname === item.url,
+  }))
+
+  const navReportsWithActiveState = baseData.navReports.map((item) => ({
+    ...item,
     isActive: item.items ? pathname.startsWith(item.url) : pathname === item.url,
   }))
 
@@ -134,11 +162,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* Pasamos los datos calculados dinámicamente */}
         <NavMain items={navMainWithActiveState} />
         <NavDocuments items={baseData.documents} />
+        <NavMain items={navReportsWithActiveState} label="Fiscalización" />
         <NavSecondary items={baseData.navSecondary} className="mt-auto" />
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={baseData.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   )

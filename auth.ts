@@ -26,6 +26,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 token.id = user.id;
                 token.email = user.email;
                 token.name = user.name;
+                // Add organizationId to token
+                token.organizationId = (user as any).organizationId;
             }
             return token;
         },
@@ -34,6 +36,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 session.user.id = token.id as string;
                 session.user.email = token.email as string;
                 session.user.name = token.name as string;
+                // Pass organizationId to session
+                session.user.organizationId = token.organizationId as string;
             }
             return session;
         },

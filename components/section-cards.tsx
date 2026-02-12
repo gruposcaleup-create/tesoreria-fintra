@@ -22,13 +22,24 @@ import {
 } from "@/components/ui/dialog"
 import { TasksCard } from "@/components/tasks-card"
 import { DashboardTable } from "./dashboard-table"
-import { useTreasury } from "@/components/providers/treasury-context"
+import { useTreasury, EgresoContable } from "@/components/providers/treasury-context"
 import { Movement } from "./dashboard-data"
+import { EditEgresoDialog } from "./edit-egreso-dialog"
 
 export function SectionCards() {
   const { ingresosContables, egresosContables } = useTreasury();
   const [openIngresos, setOpenIngresos] = useState(false)
   const [openEgresos, setOpenEgresos] = useState(false)
+  const [editingEgreso, setEditingEgreso] = useState<EgresoContable | null>(null)
+  const [openEditEgreso, setOpenEditEgreso] = useState(false)
+
+  const handleEditEgreso = (movement: Movement) => {
+    const egreso = egresosContables.find(e => e.id === movement.id)
+    if (egreso) {
+      setEditingEgreso(egreso)
+      setOpenEditEgreso(true)
+    }
+  }
 
   // 1. Mapear datos Contables a formato Visual (Movement)
   const ingresosData: Movement[] = useMemo(() => {
@@ -234,10 +245,16 @@ export function SectionCards() {
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1">
-              <DashboardTable data={egresosData} />
+              <DashboardTable data={egresosData} onEdit={handleEditEgreso} />
             </div>
           </DialogContent>
         </Dialog>
+
+        <EditEgresoDialog
+          open={openEditEgreso}
+          onOpenChange={setOpenEditEgreso}
+          egreso={editingEgreso}
+        />
 
       </div>
     </>

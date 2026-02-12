@@ -5,6 +5,7 @@ import './globals.css'
 import { ThemeProvider } from "@/components/theme-provider"
 import { TreasuryProvider } from '@/components/providers/treasury-context'
 import { Toaster } from "@/components/ui/toaster"
+import { SessionProvider } from "next-auth/react"
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
@@ -30,17 +31,19 @@ export default function RootLayout({
         className={`${_geist.variable} ${_geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TreasuryProvider>
-            {children}
-          </TreasuryProvider>
-          <Toaster />
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TreasuryProvider>
+              {children}
+            </TreasuryProvider>
+            <Toaster />
+          </ThemeProvider>
+        </SessionProvider>
         <Analytics />
       </body>
     </html>

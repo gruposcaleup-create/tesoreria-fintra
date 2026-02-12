@@ -30,7 +30,8 @@ import {
   FileText,
   Printer,
   X,
-  Check
+  Check,
+  Package
 } from "lucide-react"
 
 import {
@@ -127,6 +128,8 @@ export default function EgresosPage() {
   // Estados para la Orden de Pago
   const [selectedEgreso, setSelectedEgreso] = useState<EgresoContable | null>(null)
   const [isOrderOpen, setIsOrderOpen] = useState(false)
+  const [resguardoEgreso, setResguardoEgreso] = useState<EgresoContable | null>(null)
+  const [isResguardoOpen, setIsResguardoOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{ id: string, type: "Ingreso" | "Egreso", action: "approve" | "reject" } | null>(null);
 
   const handleActionClick = (id: string, type: "Ingreso" | "Egreso", action: "approve" | "reject") => {
@@ -145,6 +148,11 @@ export default function EgresosPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleResguardo = (egreso: EgresoContable) => {
+    setResguardoEgreso(egreso);
+    setIsResguardoOpen(true);
   };
 
   const handleOpenOrder = (egreso: EgresoContable) => {
@@ -257,6 +265,25 @@ export default function EgresosPage() {
       },
     },
     {
+      accessorKey: "clasificacion",
+      header: "Tipo",
+      cell: ({ row }) => {
+        const clasificacion = row.getValue("clasificacion") as string | undefined
+        if (!clasificacion) return <span className="text-muted-foreground text-xs">-</span>
+        return (
+          <Badge
+            variant={clasificacion === "ACTIVO" ? "default" : "secondary"}
+            className={clasificacion === "ACTIVO"
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px]"
+              : "bg-slate-300 dark:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-[10px]"
+            }
+          >
+            {clasificacion}
+          </Badge>
+        )
+      }
+    },
+    {
       id: "validacion",
       header: "Validación",
       cell: ({ row }) => {
@@ -335,6 +362,17 @@ export default function EgresosPage() {
               >
                 <FileText className="mr-2 h-4 w-4" /> Generar Orden de Pago
               </DropdownMenuItem>
+              {egreso.clasificacion === "ACTIVO" && egreso.activoData && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleResguardo(egreso)}
+                    className="cursor-pointer text-emerald-700 focus:bg-emerald-50"
+                  >
+                    <Package className="mr-2 h-4 w-4" /> Ver formato de resguardo
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )
@@ -361,6 +399,18 @@ export default function EgresosPage() {
             left: 0; 
             top: 0; 
             width: 100%; 
+            margin: 0;
+            padding: 0;
+            background: white;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          #resguardo-container, #resguardo-container * { visibility: visible; }
+          #resguardo-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
             margin: 0;
             padding: 0;
             background: white;
@@ -676,6 +726,223 @@ export default function EgresosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- MODAL RESGUARDO DE BIENES MUEBLES --- */}
+      <Dialog open={isResguardoOpen} onOpenChange={setIsResguardoOpen}>
+        <DialogContent className="!max-w-[95vw] !w-[95vw] h-[95vh] flex flex-col p-0 gap-0 bg-gray-50 border-0 overflow-hidden sm:rounded-lg">
+
+          {/* Header del Modal */}
+          <DialogHeader className="px-6 py-4 border-b bg-white shrink-0 no-print flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-emerald-600" />
+              <DialogTitle>Vista Previa: Resguardo de Bienes Muebles</DialogTitle>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsResguardoOpen(false)} className="gap-2">
+                <X className="h-4 w-4" /> Cerrar
+              </Button>
+              <Button onClick={handlePrint} className="bg-slate-900 text-white hover:bg-slate-800 gap-2 shadow-md">
+                <Printer className="h-4 w-4" /> Imprimir
+              </Button>
+            </div>
+          </DialogHeader>
+          <DialogDescription className="sr-only">
+            Formato de resguardo de bienes muebles para impresión.
+          </DialogDescription>
+
+          {/* AREA DE CONTENIDO SCROLLEABLE */}
+          <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-100">
+
+            {/* --- HOJA DE PAPEL --- */}
+            <div id="resguardo-container" className="bg-white w-[21.59cm] min-h-[27.94cm] p-10 shadow-2xl text-black font-sans text-[11px] leading-snug relative">
+
+              {/* ═══ ENCABEZADO ═══ */}
+              <div className="flex items-start gap-4 mb-2">
+                {/* Logo */}
+                <div className="w-24 shrink-0">
+                  {config.logoLeft ? (
+                    <img src={config.logoLeft} alt="Logo" className="w-24 h-auto object-contain" />
+                  ) : (
+                    <div className="w-20 h-20 border-2 border-dashed border-gray-300 flex items-center justify-center text-[8px] text-gray-400 rounded-full">LOGO</div>
+                  )}
+                </div>
+                {/* Title */}
+                <div className="flex-1 pt-1">
+                  <h1 className="text-xl font-bold text-[#2b5797] underline underline-offset-4 uppercase tracking-wide">
+                    RESGUARDO DE BIENES MUEBLES
+                  </h1>
+                  <p className="text-sm text-[#2b5797] mt-2 uppercase tracking-wide">
+                    {fiscalConfig.nombreEnte || ""}
+                  </p>
+                </div>
+                {/* Location + Date */}
+                <div className="text-right text-[11px] font-semibold shrink-0 pt-1">
+                  {(() => {
+                    const fecha = resguardoEgreso?.fecha || '';
+                    const d = fecha ? new Date(fecha + 'T12:00:00') : new Date();
+                    const loc = fiscalConfig.domicilio || '';
+                    const locParts = loc.split(',');
+                    const cityState = locParts.length >= 2 ? `${locParts[locParts.length - 2]?.trim()}, ${locParts[locParts.length - 1]?.trim()}` : '';
+                    return (
+                      <>
+                        {cityState && <p className="uppercase">{cityState}</p>}
+                        <p className="uppercase">{d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* ═══ TABLA PRINCIPAL ═══ */}
+              <table className="w-full border-collapse border-2 border-black text-[11px] mb-0" style={{ tableLayout: 'fixed' }}>
+                {/* ROW: RESGUARDO DE BIENES header */}
+                <thead>
+                  <tr>
+                    <th colSpan={6} className="bg-[#2b5797] text-white text-center font-bold text-sm py-1.5 border border-black uppercase tracking-wide">
+                      Resguardo de Bienes
+                    </th>
+                    <th colSpan={2} className="border border-black bg-white text-right pr-2 font-bold text-[10px] align-middle">
+                      RESGUARDO NUMERO: <span className="text-sm ml-1">{resguardoEgreso?.activoData?.resguardoNumero || ''}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* ROW: OPD */}
+                  <tr>
+                    <td className="border border-black font-bold px-2 py-1 w-[12%] align-top">OPD:</td>
+                    <td colSpan={5} className="border border-black text-center font-semibold px-2 py-1 uppercase">
+                      {resguardoEgreso?.activoData?.opd || fiscalConfig.nombreEnte || ''}
+                    </td>
+                    <td rowSpan={3} colSpan={2} className="border border-black text-center font-bold px-2 py-2 align-middle text-[10px]">
+                      <div>REFERENCIA DE</div>
+                      <div>PAGO:</div>
+                      <div className="mt-1 font-semibold text-[11px]">{resguardoEgreso?.activoData?.referenciaPago || ''}</div>
+                    </td>
+                  </tr>
+                  {/* ROW: AREA */}
+                  <tr>
+                    <td className="border border-black font-bold px-2 py-1">AREA:</td>
+                    <td colSpan={5} className="border border-black text-center px-2 py-1 uppercase">
+                      {resguardoEgreso?.activoData?.area || ''}
+                    </td>
+                  </tr>
+                  {/* ROW: ENCARGADO */}
+                  <tr>
+                    <td className="border border-black font-bold px-2 py-1">ENCARGADO:</td>
+                    <td colSpan={5} className="border border-black text-center px-2 py-1 uppercase">
+                      {resguardoEgreso?.activoData?.encargado || ''}
+                    </td>
+                  </tr>
+                  {/* ROW: EQUIPO */}
+                  <tr>
+                    <td className="border border-black font-bold px-2 py-1">EQUIPO:</td>
+                    <td colSpan={7} className="border border-black text-center px-2 py-1 uppercase">
+                      {resguardoEgreso?.activoData?.equipo || ''}
+                    </td>
+                  </tr>
+                  {/* ROW: FECHA DE ADQUISICION */}
+                  <tr>
+                    <td rowSpan={2} className="border border-black font-bold px-2 py-1 text-center text-[10px] align-middle">
+                      FECHA DE<br />ADQUISICION:
+                    </td>
+                    <td className="border border-black text-center font-bold text-[10px] px-1 py-0.5 bg-[#2b5797] text-white">DIA</td>
+                    <td className="border border-black text-center font-bold text-[10px] px-1 py-0.5 bg-[#2b5797] text-white">MES</td>
+                    <td className="border border-black text-center font-bold text-[10px] px-1 py-0.5 bg-[#2b5797] text-white">AÑO</td>
+                    <td colSpan={4} className="border border-black text-center font-bold text-[10px] px-2 py-0.5">
+                      COSTO DE ADQUISICION:
+                    </td>
+                  </tr>
+                  <tr>
+                    {(() => {
+                      const fecha = resguardoEgreso?.fecha || '';
+                      const d = fecha ? new Date(fecha + 'T12:00:00') : new Date();
+                      const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+                      return (
+                        <>
+                          <td className="border border-black text-center px-1 py-1 font-semibold">{d.getDate()}</td>
+                          <td className="border border-black text-center px-1 py-1 font-semibold">{meses[d.getMonth()]}</td>
+                          <td className="border border-black text-center px-1 py-1 font-semibold">{d.getFullYear()}</td>
+                        </>
+                      );
+                    })()}
+                    <td colSpan={4} className="border border-black text-center px-2 py-1 font-bold text-base">
+                      {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(resguardoEgreso?.monto || 0)}
+                    </td>
+                  </tr>
+                  {/* ROW: DESCRIPCION header */}
+                  <tr>
+                    <td colSpan={8} className="bg-[#2b5797] text-white text-center font-bold text-sm py-1 border border-black uppercase tracking-wide">
+                      Descripcion
+                    </td>
+                  </tr>
+                  {/* Description rows */}
+                  {[
+                    { label: 'PROVEEDOR:', value: resguardoEgreso?.activoData?.proveedor },
+                    { label: 'FACTURA:', value: resguardoEgreso?.activoData?.factura },
+                    { label: 'MARCA:', value: resguardoEgreso?.activoData?.marca },
+                    { label: 'MODELO:', value: resguardoEgreso?.activoData?.modelo },
+                    { label: 'SERIE:', value: resguardoEgreso?.activoData?.serie },
+                    { label: 'COLOR:', value: resguardoEgreso?.activoData?.color },
+                    { label: 'OBSERVACIONES:', value: resguardoEgreso?.activoData?.observaciones },
+                  ].map((item, i) => (
+                    <tr key={i}>
+                      <td className="border border-black font-bold px-2 py-1.5">{item.label}</td>
+                      <td colSpan={7} className="border border-black text-center px-2 py-1.5 uppercase font-medium">
+                        {item.value || ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* ═══ LEGAL TEXT ═══ */}
+              <div className="mt-8 mb-6 text-[11px] leading-relaxed">
+                <p className="mb-4">Al firmar el presente resguardo me obligo a:</p>
+                <p className="text-justify">
+                  Cumplir lo establecido en la LEY DE ADQUISICIONES, ARRENDAMIENTOS, ADMINISTRACIÓN Y ENAJENACIÓN DE BIENES MUEBLES DEL ESTADO DE VERACRUZ DE IGNACIO DE LA LLAVE, Artículo 89 y 93.
+                </p>
+              </div>
+
+              {/* ═══ SIGNATURE BLOCKS ═══ */}
+              <table className="w-full border-collapse border-2 border-black mt-6" style={{ tableLayout: 'fixed' }}>
+                <thead>
+                  <tr>
+                    <th className="bg-[#2b5797] text-white text-center font-bold text-sm py-2 border border-black uppercase tracking-wide w-1/2">
+                      Director
+                    </th>
+                    <th className="bg-[#2b5797] text-white text-center font-bold text-sm py-2 border border-black uppercase tracking-wide w-1/2">
+                      Resguarda
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border border-black h-20 align-bottom p-0">
+                      <div className="border-t-2 border-black mx-6 mb-0" />
+                    </td>
+                    <td className="border border-black h-20 align-bottom p-0">
+                      <div className="border-t-2 border-black mx-6 mb-0" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="border border-black text-center py-2 px-4">
+                      <p className="font-bold uppercase text-[11px]">{resguardoEgreso?.activoData?.director || ''}</p>
+                      <p className="uppercase text-[9px] text-gray-600 mt-0.5">FIRMA DEL DIRECTOR</p>
+                    </td>
+                    <td className="border border-black text-center py-2 px-4">
+                      <p className="font-bold uppercase text-[11px]">{resguardoEgreso?.activoData?.resguardante || ''}</p>
+                      <p className="uppercase text-[9px] text-gray-600 mt-0.5">FIRMA DEL RESGUARDANTE</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+            </div>
+          </div>
+
+        </DialogContent>
+      </Dialog>
+
     </SidebarProvider >
   )
 }

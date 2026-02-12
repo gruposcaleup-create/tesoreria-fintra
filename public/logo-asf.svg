@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200" width="600" height="200">
+  <!-- Background -->
+  <rect width="600" height="200" fill="white"/>
+  
+  <!-- ASF Text -->
+  <text x="20" y="110" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="96" fill="#1a2744" letter-spacing="-2">ASF</text>
+  
+  <!-- Vertical Separator -->
+  <line x1="248" y1="25" x2="248" y2="130" stroke="#666666" stroke-width="2"/>
+  
+  <!-- Auditoría Superior de la Federación -->
+  <text x="262" y="58" font-family="Arial, sans-serif" font-weight="700" font-size="28" fill="#888888">Auditoría</text>
+  <text x="262" y="88" font-family="Arial, sans-serif" font-weight="700" font-size="28" fill="#888888">Superior</text>
+  <text x="262" y="118" font-family="Arial, sans-serif" font-weight="700" font-size="28" fill="#888888">de la Federación</text>
+  
+  <!-- Green stripe -->
+  <rect x="20" y="138" width="560" height="6" fill="#006847" rx="1"/>
+  <!-- Red stripe -->
+  <rect x="20" y="148" width="560" height="3" fill="#CE1126" rx="0.5"/>
+  
+  <!-- Cámara de Diputados -->
+  <text x="300" y="180" font-family="Arial, sans-serif" font-weight="400" font-size="22" fill="#999999" text-anchor="middle" letter-spacing="3">CÁMARA DE DIPUTADOS</text>
+</svg>

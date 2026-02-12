@@ -10,3 +10,4 @@ const nextConfig = {
 }
 
 export default nextConfig
+// Force restart for Prisma Client update

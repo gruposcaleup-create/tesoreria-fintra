@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, ReactNode } from "react"
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react"
 
 // --- TYPES ---
 export type TipoCuenta = "Cheques (Operativa)" | "Inversión (Productiva)" | "Nómina" | "Fondo Revolvente";
@@ -131,6 +131,24 @@ export type EgresoContable = {
     departamento?: string
     area?: string
     poliza?: string
+    clasificacion?: "ACTIVO" | "GASTO"
+    activoData?: {
+        resguardoNumero: string
+        opd: string
+        area: string
+        encargado: string
+        equipo: string
+        proveedor: string
+        factura: string
+        marca: string
+        modelo: string
+        serie: string
+        color: string
+        observaciones: string
+        referenciaPago: string
+        director: string
+        resguardante: string
+    }
 }
 
 export type Fuente = {
@@ -271,6 +289,8 @@ interface TreasuryContextType {
     systemLog: LogEntry[];
     setSystemLog: React.Dispatch<React.SetStateAction<LogEntry[]>>;
     addToLog: (action: string, details: string, type?: LogEntry["type"]) => void;
+    approveTransaction: (id: string, type: "Ingreso" | "Egreso") => void;
+    rejectTransaction: (id: string, type: "Ingreso" | "Egreso") => void;
     // New
     ingresosContables: IngresoContable[];
     setIngresosContables: React.Dispatch<React.SetStateAction<IngresoContable[]>>;
@@ -284,6 +304,11 @@ interface TreasuryContextType {
     origenes: string[];
     addOrigen: (origen: string) => void;
     deleteOrigen: (origen: string) => void;
+    // New (Departamentos)
+    departamentos: Departamento[];
+    addDepartamento: (nombre: string, areas?: string[]) => void;
+    updateDepartamento: (id: string, nombre: string, areas: string[]) => void;
+    deleteDepartamento: (id: string) => void;
     // New (Presupuesto)
     presupuesto: PresupuestoItem[];
     setPresupuesto: React.Dispatch<React.SetStateAction<PresupuestoItem[]>>;
@@ -293,6 +318,56 @@ interface TreasuryContextType {
     leyIngresos: PresupuestoItem[];
     setLeyIngresos: React.Dispatch<React.SetStateAction<PresupuestoItem[]>>;
     updateLeyIngresosFromIngreso: (cuentaContable: string, monto: number, fecha: string) => void;
+
+    // Proveedores (New)
+    proveedores: Proveedor[];
+    setProveedores: React.Dispatch<React.SetStateAction<Proveedor[]>>;
+    addProveedor: (proveedor: Proveedor) => void;
+
+    // New (System Config)
+    config: { logoLeft: string, logoRight: string };
+    setConfig: React.Dispatch<React.SetStateAction<{ logoLeft: string, logoRight: string }>>;
+
+    fiscalConfig: { nombreEnte: string, rfc: string, regimen: string, cp: string, domicilio: string };
+    setFiscalConfig: React.Dispatch<React.SetStateAction<{ nombreEnte: string, rfc: string, regimen: string, cp: string, domicilio: string }>>;
+
+    firmantes: Firmante[];
+    setFirmantes: React.Dispatch<React.SetStateAction<Firmante[]>>;
+
+    paymentOrderSigners: PaymentOrderSigner;
+    setPaymentOrderSigners: React.Dispatch<React.SetStateAction<PaymentOrderSigner>>;
+
+    // New (Payment Order Folio)
+    nextPaymentOrderFolio: number;
+    incrementPaymentOrderFolio: () => void;
+}
+
+// --- PROVEEDOR TYPES ---
+export type EstatusProveedor = "Activo" | "Bloqueado" | "En Revisión";
+export type RiesgoSAT = "Sin Riesgo" | "Observado (69-B)" | "Opinión Negativa";
+
+export interface Proveedor {
+    id: string;
+    razonSocial: string;
+    rfc: string;
+    tipo: "Persona Moral" | "Persona Física";
+    codigoPostal: string;
+    regimenFiscal: string;
+    representanteLegal: string;
+    email: string;
+    telefono: string;
+    clabe: string;
+    banco: string;
+    estatus: EstatusProveedor;
+    riesgoSat: RiesgoSAT;
+    ultimaActualizacion: string;
+    documentosEntregados: number; // de 5 obligatorios
+    csfPdfBase64?: string;
+    csfFileName?: string;
+    actaBase64?: string;
+    actaFileName?: string;
+    comprobanteBase64?: string;
+    comprobanteFileName?: string;
 }
 
 const TreasuryContext = createContext<TreasuryContextType | undefined>(undefined);
@@ -369,7 +444,9 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
                         estatus: e.estatus as "Pendiente" | "Pagado" | "Cancelado",
                         folioOrden: e.folioOrden || undefined,
                         departamento: e.departamento || undefined,
-                        area: e.area || undefined
+                        area: e.area || undefined,
+                        clasificacion: e.clasificacion || undefined,
+                        activoData: e.activoData || undefined
                     }));
                     setEgresosContables(egresos);
                 }
@@ -435,6 +512,32 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     const [departamentos, setDepartamentos] = useState<Departamento[]>(INITIAL_DEPARTAMENTOS);
     const [presupuesto, setPresupuesto] = useState<PresupuestoItem[]>(INITIAL_PRESUPUESTO);
     const [leyIngresos, setLeyIngresos] = useState<PresupuestoItem[]>(INITIAL_LEY_INGRESOS);
+    const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+
+    useEffect(() => {
+        // Load proveedores from localStorage
+        if (typeof window !== "undefined") {
+            try {
+                const raw = localStorage.getItem("fintra_proveedores");
+                if (raw) {
+                    setProveedores(JSON.parse(raw));
+                }
+            } catch (error) {
+                console.error("Error loading proveedores:", error);
+            }
+        }
+    }, []);
+
+    const addProveedor = (proveedor: Proveedor) => {
+        setProveedores(prev => {
+            const updated = [...prev, proveedor];
+            if (typeof window !== "undefined") {
+                localStorage.setItem("fintra_proveedores", JSON.stringify(updated));
+            }
+            return updated;
+        });
+        addToLog("Proveedor Agregado", `Se registró al proveedor ${proveedor.razonSocial}`, "create");
+    };
 
     // Config states (loaded from DB)
     const [config, setConfig] = useState({ logoLeft: "", logoRight: "" });
@@ -838,6 +941,7 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         leyIngresos,
         setLeyIngresos,
         updateLeyIngresosFromIngreso,
+        proveedores, setProveedores, addProveedor,
         config, setConfig,
         fiscalConfig, setFiscalConfig,
         firmantes, setFirmantes,
@@ -846,7 +950,7 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
         nextPaymentOrderFolio, incrementPaymentOrderFolio
     }), [
         cuentas, systemLog, ingresosContables, egresosContables, fuentes, origenes, departamentos,
-        presupuesto, leyIngresos, config, fiscalConfig, firmantes, paymentOrderSigners, nextPaymentOrderFolio
+        presupuesto, leyIngresos, proveedores, config, fiscalConfig, firmantes, paymentOrderSigners, nextPaymentOrderFolio
     ]);
 
     return (
@@ -856,54 +960,7 @@ export function TreasuryProvider({ children }: { children: ReactNode }) {
     );
 }
 
-// --- CONTEXT INTERFACE ---
-interface TreasuryContextType {
-    cuentas: BankAccount[];
-    setCuentas: React.Dispatch<React.SetStateAction<BankAccount[]>>;
-    systemLog: LogEntry[];
-    setSystemLog: React.Dispatch<React.SetStateAction<LogEntry[]>>;
-    addToLog: (action: string, details: string, type?: LogEntry["type"]) => void;
-    approveTransaction: (id: string, type: "Ingreso" | "Egreso") => void;
-    rejectTransaction: (id: string, type: "Ingreso" | "Egreso") => void;
-    // New
-    ingresosContables: IngresoContable[];
-    setIngresosContables: React.Dispatch<React.SetStateAction<IngresoContable[]>>;
-    egresosContables: EgresoContable[];
-    setEgresosContables: React.Dispatch<React.SetStateAction<EgresoContable[]>>;
-    // New
-    fuentes: Fuente[];
-    addFuente: (fuente: Fuente) => void;
-    deleteFuente: (id: string) => void;
-    // New (Origenes)
-    origenes: string[];
-    addOrigen: (origen: string) => void;
-    deleteOrigen: (origen: string) => void;
-    // New (Departamentos)
-    departamentos: Departamento[];
-    addDepartamento: (nombre: string, areas?: string[]) => void;
-    updateDepartamento: (id: string, nombre: string, areas: string[]) => void;
-    deleteDepartamento: (id: string) => void;
-    // New (Presupuesto)
-    presupuesto: PresupuestoItem[];
-    addPresupuestoItem: (item: PresupuestoItem, parentCode?: string) => void;
-    // New (System Config)
-    config: { logoLeft: string, logoRight: string };
-    setConfig: React.Dispatch<React.SetStateAction<{ logoLeft: string, logoRight: string }>>;
-
-    fiscalConfig: { nombreEnte: string, rfc: string, regimen: string, cp: string, domicilio: string };
-    setFiscalConfig: React.Dispatch<React.SetStateAction<{ nombreEnte: string, rfc: string, regimen: string, cp: string, domicilio: string }>>;
-
-    firmantes: Firmante[];
-    setFirmantes: React.Dispatch<React.SetStateAction<Firmante[]>>;
-
-    paymentOrderSigners: PaymentOrderSigner;
-    setPaymentOrderSigners: React.Dispatch<React.SetStateAction<PaymentOrderSigner>>;
-
-    // New (Payment Order Folio)
-    nextPaymentOrderFolio: number;
-    incrementPaymentOrderFolio: () => void;
-}
-
+// --- HOOK ---
 export function useTreasury() {
     const context = useContext(TreasuryContext);
     if (context === undefined) {

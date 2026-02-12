@@ -22,6 +22,7 @@ import {
 // Aseguramos que la definición de tipos soporte items opcionales
 export function NavMain({
   items,
+  label = "Plataforma", // Default value
 }: {
   items: {
     title: string
@@ -33,10 +34,11 @@ export function NavMain({
       url: string
     }[]
   }[]
+  label?: string
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
           // CASO 1: El item NO tiene submenús (es un link directo como Ingresos)

@@ -49,136 +49,145 @@ import {
 import { Movement } from "./dashboard-data"
 
 // --- DEFINICIÓN DE COLUMNAS ---
-export const columns: ColumnDef<Movement>[] = [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-        />
-      </div>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "date",
-    header: "Fecha",
-    cell: ({ row }) => <div className="text-xs text-muted-foreground font-mono">{row.getValue("date") as string}</div>,
-  },
-  {
-    accessorKey: "concept",
-    header: "Concepto",
-    cell: ({ row }) => <div className="font-medium text-sm">{row.getValue("concept") as string}</div>,
-  },
-  {
-    accessorKey: "bank",
-    header: "Banco",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2 text-sm">
-        <IconBuildingBank className="h-3 w-3 text-muted-foreground" />
-        <span>{row.getValue("bank") as string}</span>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "type",
-    header: "Tipo",
-    cell: ({ row }) => {
-      const type = row.getValue("type") as string
-      return (
-        <Badge
-          variant="outline"
-          className={`gap-1 pr-2 font-normal ${type === "Ingreso"
-            ? "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
-            : "text-red-600 bg-red-50 border-red-200 hover:bg-red-100"
-            }`}
-        >
-          {type === "Ingreso" ? <IconArrowUpRight className="h-3 w-3" /> : <IconArrowDownLeft className="h-3 w-3" />}
-          {type}
-        </Badge>
-      )
-    },
-  },
-  {
-    accessorKey: "amount",
-    header: () => <div className="text-right">Monto</div>,
-    cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("amount") as string)
-      const type = row.original.type
+// Columns defined inside to access props
 
-      const formatted = new Intl.NumberFormat("es-MX", {
-        style: "currency",
-        currency: "MXN",
-      }).format(amount)
-
-      return (
-        <div className={`text-right font-mono font-medium ${type === "Ingreso" ? "text-emerald-600" : "text-foreground"}`}>
-          {type === "Ingreso" ? "+" : "-"}{formatted}
-        </div>
-      )
-    },
-  },
-  {
-    accessorKey: "status",
-    header: "Estado",
-    cell: ({ row }) => {
-      const status = row.getValue("status") as string
-      let variantClass = "bg-slate-100 text-slate-700 border-slate-200" // Default
-
-      if (status === "Completado") variantClass = "bg-emerald-50 text-emerald-700 border-emerald-200"
-      if (status === "Pendiente") variantClass = "bg-yellow-50 text-yellow-700 border-yellow-200"
-      if (status === "Rechazado") variantClass = "bg-red-50 text-red-700 border-red-200"
-
-      return (
-        <Badge variant="outline" className={`font-normal text-xs ${variantClass}`}>
-          {status}
-        </Badge>
-      )
-    },
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-8 w-8 p-0">
-            <span className="sr-only">Abrir menú</span>
-            <IconDotsVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>Copiar ID</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Ver detalles</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
-  },
-]
 
 interface DashboardTableProps {
   data: Movement[]
+  onEdit?: (movement: Movement) => void
 }
 
 // --- COMPONENTE PRINCIPAL ---
-export function DashboardTable({ data }: DashboardTableProps) {
+export function DashboardTable({ data, onEdit }: DashboardTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const columns: ColumnDef<Movement>[] = React.useMemo(() => [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "date",
+      header: "Fecha",
+      cell: ({ row }) => <div className="text-xs text-muted-foreground font-mono">{row.getValue("date") as string}</div>,
+    },
+    {
+      accessorKey: "concept",
+      header: "Concepto",
+      cell: ({ row }) => <div className="font-medium text-sm">{row.getValue("concept") as string}</div>,
+    },
+    {
+      accessorKey: "bank",
+      header: "Banco",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 text-sm">
+          <IconBuildingBank className="h-3 w-3 text-muted-foreground" />
+          <span>{row.getValue("bank") as string}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "type",
+      header: "Tipo",
+      cell: ({ row }) => {
+        const type = row.getValue("type") as string
+        return (
+          <Badge
+            variant="outline"
+            className={`gap-1 pr-2 font-normal ${type === "Ingreso"
+              ? "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+              : "text-red-600 bg-red-50 border-red-200 hover:bg-red-100"
+              }`}
+          >
+            {type === "Ingreso" ? <IconArrowUpRight className="h-3 w-3" /> : <IconArrowDownLeft className="h-3 w-3" />}
+            {type}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: "amount",
+      header: () => <div className="text-right">Monto</div>,
+      cell: ({ row }) => {
+        const amount = parseFloat(row.getValue("amount") as string)
+        const type = row.original.type
+
+        const formatted = new Intl.NumberFormat("es-MX", {
+          style: "currency",
+          currency: "MXN",
+        }).format(amount)
+
+        return (
+          <div className={`text-right font-mono font-medium ${type === "Ingreso" ? "text-emerald-600" : "text-foreground"}`}>
+            {type === "Ingreso" ? "+" : "-"}{formatted}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Estado",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string
+        let variantClass = "bg-slate-100 text-slate-700 border-slate-200" // Default
+
+        if (status === "Completado") variantClass = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        if (status === "Pendiente") variantClass = "bg-yellow-50 text-yellow-700 border-yellow-200"
+        if (status === "Rechazado") variantClass = "bg-red-50 text-red-700 border-red-200"
+
+        return (
+          <Badge variant="outline" className={`font-normal text-xs ${variantClass}`}>
+            {status}
+          </Badge>
+        )
+      },
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Abrir menú</span>
+              <IconDotsVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>Copiar ID</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(row.original)}>
+                Editar
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem>Ver detalles</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ], [onEdit]);
+
   const [rowSelection, setRowSelection] = React.useState({})
 
   const table = useReactTable({

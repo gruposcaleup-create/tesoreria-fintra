@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { ClasificadorCOG, Prisma } from "@prisma/client"
+import { auth } from "@/auth"
 
 // Types matching Context Interfaces roughly
 type TransactionInput = {
@@ -31,17 +32,32 @@ type NewBudgetInput = {
     aprobado: number
 }
 
+// --- HELPER FOR AUTH ---
+async function getOrgId() {
+    const session = await auth();
+    if (!session?.user?.organizationId) {
+        throw new Error("No autorizado: Sin organización.");
+    }
+    return session.user.organizationId;
+}
+
 // --- ATOMIC TRANSACTION HANDLER ---
 
 export async function registerTransaction(data: TransactionInput) {
     try {
+        const orgId = await getOrgId();
+
         // Enforce Atomic Transaction
         const result = await prisma.$transaction(async (tx) => {
 
-            // 1. Fetch Account to check balance/existence
-            const account = await tx.bankAccount.findUniqueOrThrow({
+            // 1. Fetch Account to check balance/existence AND ownership
+            const account = await tx.bankAccount.findUnique({
                 where: { id: data.accountId }
             })
+
+            if (!account || account.organizationId !== orgId) {
+                throw new Error("Cuenta bancaria no encontrada o sin acceso.");
+            }
 
             // 2. Validate Overdraft for Egreso
             if (data.tipo === "Egreso" && account.saldoDisponible.lt(data.monto)) {
@@ -57,7 +73,8 @@ export async function registerTransaction(data: TransactionInput) {
                     referencia: data.referencia,
                     monto: data.monto,
                     tipo: data.tipo,
-                    estatus: "Conciliado" // Assuming immediate effect for now
+                    estatus: "Conciliado", // Assuming immediate effect for now
+                    organizationId: orgId
                 }
             })
 
@@ -88,7 +105,8 @@ export async function registerTransaction(data: TransactionInput) {
                         estatus: "Pagado",
                         fondo: "",
                         institucionBancaria: "",
-                        cuentaBancaria: ""
+                        cuentaBancaria: "",
+                        organizationId: orgId
                     }
                 })
 
@@ -99,9 +117,14 @@ export async function registerTransaction(data: TransactionInput) {
                 })
 
                 // 5b. Update Budget Execution (Devengado)
-                // Find the specific budget item by COG code
+                // Find the specific budget item by COG code AND Organization
                 const budgetItem = await tx.clasificadorCOG.findUnique({
-                    where: { codigo: data.egresoDetails.cog }
+                    where: {
+                        organizationId_codigo: {
+                            organizationId: orgId,
+                            codigo: data.egresoDetails.cog
+                        }
+                    }
                 })
 
                 if (budgetItem) {
@@ -112,10 +135,6 @@ export async function registerTransaction(data: TransactionInput) {
                             pagado: { increment: data.monto } // Assuming paid immediately
                         }
                     })
-
-                    // Note: Ideally, we should also bubble up the 'devengado' amount to parents (Capitulo)
-                    // This recursive update is complex in Prisma logic alone and might need raw SQL or separate steps.
-                    // For now, we update the specific item.
                 }
             }
 
@@ -137,9 +156,16 @@ export async function registerTransaction(data: TransactionInput) {
 
 export async function createBudgetItem(data: NewBudgetInput) {
     try {
-        // 1. Validate Code Uniqueness
+        const orgId = await getOrgId();
+
+        // 1. Validate Code Uniqueness per Organization
         const existing = await prisma.clasificadorCOG.findUnique({
-            where: { codigo: data.codigo }
+            where: {
+                organizationId_codigo: {
+                    organizationId: orgId,
+                    codigo: data.codigo
+                }
+            }
         })
         if (existing) throw new Error("El Código Presupuestal ya existe.");
 
@@ -149,7 +175,7 @@ export async function createBudgetItem(data: NewBudgetInput) {
             const parent = await prisma.clasificadorCOG.findUnique({
                 where: { id: data.parentId }
             })
-            if (!parent) throw new Error("El Capítulo/Concepto padre no existe.");
+            if (!parent || parent.organizationId !== orgId) throw new Error("El Capítulo/Concepto padre no existe.");
         }
 
         const newItem = await prisma.clasificadorCOG.create({
@@ -158,11 +184,9 @@ export async function createBudgetItem(data: NewBudgetInput) {
                 nombre: data.descripcion, // Helper maps 'descripcion' to 'nombre'
                 nivel: data.nivel,
                 parentId: data.parentId,
-                // ClasificadorCOG doesn't have fuenteFinanciamiento directly or it might be different?
-                // Checking schema: ClasificadorCOG does NOT have fuenteFinanciamiento.
-                // It has 'aprobado', 'modificado' etc.
                 aprobado: data.aprobado,
                 modificado: data.aprobado,
+                organizationId: orgId
             }
         })
 
@@ -177,17 +201,22 @@ export async function createBudgetItem(data: NewBudgetInput) {
 // --- REPORT DATA FETCHing ---
 
 export async function getConacReportData() {
-    // Fetch all items
-    const items = await prisma.clasificadorCOG.findMany({
-        orderBy: { codigo: 'asc' },
-        include: {
-            subcuentas: true // Just one level deep for now
-        }
-    })
+    try {
+        const orgId = await getOrgId();
+        // Fetch all items for org
+        const items = await prisma.clasificadorCOG.findMany({
+            where: { organizationId: orgId },
+            orderBy: { codigo: 'asc' },
+            include: {
+                subcuentas: true // Just one level deep for now
+            }
+        })
 
-    // In a real app, we might need a recursive CTE (Common Table Expression) 
-    // to build the full tree if it's more than 2 levels deep.
-    return items.filter(item => item.nivel === "Capitulo");
+        return items.filter(item => item.nivel === "Capitulo");
+    } catch (error) {
+        console.error("Error fetching report data:", error);
+        return [];
+    }
 }
 
 // ============================================
@@ -196,7 +225,9 @@ export async function getConacReportData() {
 
 export async function getIngresos() {
     try {
+        const orgId = await getOrgId();
         const ingresos = await prisma.ingresoContable.findMany({
+            where: { organizationId: orgId },
             orderBy: { fecha: 'desc' }
         })
         // Convert Decimal to number for client serialization
@@ -222,6 +253,7 @@ export async function createIngreso(data: {
     cuentaContable?: string
 }) {
     try {
+        const orgId = await getOrgId();
         const ingreso = await prisma.ingresoContable.create({
             data: {
                 concepto: data.concepto,
@@ -229,7 +261,8 @@ export async function createIngreso(data: {
                 monto: data.monto,
                 estado: data.estado,
                 fecha: new Date(data.fecha),
-                cuentaBancaria: data.cuentaBancaria
+                cuentaBancaria: data.cuentaBancaria,
+                organizationId: orgId
             }
         })
         revalidatePath("/ingresos")
@@ -250,6 +283,14 @@ export async function updateIngreso(id: string, data: Partial<{
     cuentaBancaria?: string
 }>) {
     try {
+        const orgId = await getOrgId();
+        // Ensure ownership before update (implicitly handled by where clause if ID implies org, but explicitly safer to check or rely on ID unguessability + orgId check if needed. 
+        // Prisma update requires unique identifier (ID). 
+        // Ideally we should verify orgId OR use findFirst to update with compound where, but ID is primary key.
+        // We will do a check first for security.
+        const existing = await prisma.ingresoContable.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         const ingreso = await prisma.ingresoContable.update({
             where: { id },
             data: {
@@ -267,6 +308,10 @@ export async function updateIngreso(id: string, data: Partial<{
 
 export async function deleteIngreso(id: string) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.ingresoContable.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         await prisma.ingresoContable.delete({ where: { id } })
         revalidatePath("/ingresos")
         return { success: true }
@@ -282,7 +327,9 @@ export async function deleteIngreso(id: string) {
 
 export async function getEgresos() {
     try {
+        const orgId = await getOrgId();
         const egresos = await prisma.egresoContable.findMany({
+            where: { organizationId: orgId },
             orderBy: { fecha: 'desc' }
         })
         // Convert Decimal to number for client serialization
@@ -313,8 +360,11 @@ export async function createEgreso(data: {
     polizaNumero?: string
     departamento?: string
     area?: string
+    clasificacion?: string
+    activoData?: Record<string, string>
 }) {
     try {
+        const orgId = await getOrgId();
         const egreso = await prisma.egresoContable.create({
             data: {
                 cog: data.cog,
@@ -331,7 +381,10 @@ export async function createEgreso(data: {
                 folioOrden: data.folioOrden,
                 polizaNumero: data.polizaNumero,
                 departamento: data.departamento,
-                area: data.area
+                area: data.area,
+                clasificacion: data.clasificacion,
+                activoData: data.activoData ?? undefined,
+                organizationId: orgId
             }
         })
         revalidatePath("/egresos")
@@ -358,13 +411,20 @@ export async function updateEgreso(id: string, data: Partial<{
     folioOrden?: number
     departamento?: string
     area?: string
+    clasificacion?: string
+    activoData?: Record<string, string>
 }>) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.egresoContable.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         const egreso = await prisma.egresoContable.update({
             where: { id },
             data: {
                 ...data,
-                fecha: data.fecha ? new Date(data.fecha) : undefined
+                fecha: data.fecha ? new Date(data.fecha) : undefined,
+                activoData: data.activoData ?? undefined
             }
         })
         revalidatePath("/egresos")
@@ -377,6 +437,10 @@ export async function updateEgreso(id: string, data: Partial<{
 
 export async function deleteEgreso(id: string) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.egresoContable.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         await prisma.egresoContable.delete({ where: { id } })
         revalidatePath("/egresos")
         return { success: true }
@@ -392,7 +456,9 @@ export async function deleteEgreso(id: string) {
 
 export async function getFuentes() {
     try {
+        const orgId = await getOrgId();
         const fuentes = await prisma.fuente.findMany({
+            where: { organizationId: orgId },
             orderBy: { acronimo: 'asc' }
         })
         return { success: true, data: fuentes }
@@ -408,11 +474,13 @@ export async function createFuente(data: {
     origen: string
 }) {
     try {
+        const orgId = await getOrgId();
         const fuente = await prisma.fuente.create({
             data: {
                 acronimo: data.acronimo,
                 nombre: data.nombre,
-                origen: data.origen
+                origen: data.origen,
+                organizationId: orgId
             }
         })
         revalidatePath("/catalogos/fuentes")
@@ -429,6 +497,10 @@ export async function updateFuente(id: string, data: Partial<{
     origen: string
 }>) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.fuente.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         const fuente = await prisma.fuente.update({
             where: { id },
             data
@@ -443,6 +515,10 @@ export async function updateFuente(id: string, data: Partial<{
 
 export async function deleteFuente(id: string) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.fuente.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         await prisma.fuente.delete({ where: { id } })
         revalidatePath("/catalogos/fuentes")
         return { success: true }
@@ -458,7 +534,9 @@ export async function deleteFuente(id: string) {
 
 export async function getDepartamentos() {
     try {
+        const orgId = await getOrgId();
         const departamentos = await prisma.departamento.findMany({
+            where: { organizationId: orgId },
             orderBy: { nombre: 'asc' }
         })
         return { success: true, data: departamentos }
@@ -473,10 +551,12 @@ export async function createDepartamento(data: {
     areas: string[]
 }) {
     try {
+        const orgId = await getOrgId();
         const departamento = await prisma.departamento.create({
             data: {
                 nombre: data.nombre,
-                areas: data.areas
+                areas: data.areas,
+                organizationId: orgId
             }
         })
         revalidatePath("/catalogos/departamentos")
@@ -492,6 +572,10 @@ export async function updateDepartamento(id: string, data: Partial<{
     areas: string[]
 }>) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.departamento.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         const departamento = await prisma.departamento.update({
             where: { id },
             data
@@ -506,6 +590,10 @@ export async function updateDepartamento(id: string, data: Partial<{
 
 export async function deleteDepartamentoAction(id: string) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.departamento.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         await prisma.departamento.delete({ where: { id } })
         revalidatePath("/catalogos/departamentos")
         return { success: true }
@@ -521,8 +609,14 @@ export async function deleteDepartamentoAction(id: string) {
 
 export async function getSystemConfig(key: string) {
     try {
+        const orgId = await getOrgId();
         const config = await prisma.systemConfig.findUnique({
-            where: { key }
+            where: {
+                organizationId_key: {
+                    organizationId: orgId,
+                    key: key
+                }
+            }
         })
         return { success: true, data: config?.value || null }
     } catch (error: any) {
@@ -533,10 +627,20 @@ export async function getSystemConfig(key: string) {
 
 export async function setSystemConfig(key: string, value: string) {
     try {
+        const orgId = await getOrgId();
         const config = await prisma.systemConfig.upsert({
-            where: { key },
+            where: {
+                organizationId_key: {
+                    organizationId: orgId,
+                    key: key
+                }
+            },
             update: { value },
-            create: { key, value }
+            create: {
+                key,
+                value,
+                organizationId: orgId
+            }
         })
         revalidatePath("/configuracion")
         return { success: true, data: config }
@@ -548,7 +652,10 @@ export async function setSystemConfig(key: string, value: string) {
 
 export async function getAllSystemConfig() {
     try {
-        const configs = await prisma.systemConfig.findMany()
+        const orgId = await getOrgId();
+        const configs = await prisma.systemConfig.findMany({
+            where: { organizationId: orgId }
+        })
         // Convert to key-value object
         const configObject = configs.reduce((acc, config) => {
             acc[config.key] = config.value
@@ -564,8 +671,14 @@ export async function getAllSystemConfig() {
 // Folio Management
 export async function getNextPaymentOrderFolio() {
     try {
+        const orgId = await getOrgId();
         const config = await prisma.systemConfig.findUnique({
-            where: { key: 'nextPaymentOrderFolio' }
+            where: {
+                organizationId_key: {
+                    organizationId: orgId,
+                    key: 'nextPaymentOrderFolio'
+                }
+            }
         })
         const folio = config?.value ? parseInt(config.value) : 1
         return { success: true, data: folio }
@@ -593,7 +706,9 @@ export async function incrementPaymentOrderFolio() {
 
 export async function getFirmantes() {
     try {
+        const orgId = await getOrgId();
         const firmantes = await prisma.firmante.findMany({
+            where: { organizationId: orgId },
             orderBy: { nombre: 'asc' }
         })
         return { success: true, data: firmantes }
@@ -608,10 +723,12 @@ export async function createFirmante(data: {
     puesto: string
 }) {
     try {
+        const orgId = await getOrgId();
         const firmante = await prisma.firmante.create({
             data: {
                 nombre: data.nombre,
-                puesto: data.puesto
+                puesto: data.puesto,
+                organizationId: orgId
             }
         })
         revalidatePath("/configuracion")
@@ -627,6 +744,10 @@ export async function updateFirmante(id: string, data: Partial<{
     puesto: string
 }>) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.firmante.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         const firmante = await prisma.firmante.update({
             where: { id },
             data
@@ -641,6 +762,10 @@ export async function updateFirmante(id: string, data: Partial<{
 
 export async function deleteFirmanteAction(id: string) {
     try {
+        const orgId = await getOrgId();
+        const existing = await prisma.firmante.findUnique({ where: { id } });
+        if (!existing || existing.organizationId !== orgId) throw new Error("Acceso denegado.");
+
         await prisma.firmante.delete({ where: { id } })
         revalidatePath("/configuracion")
         return { success: true }

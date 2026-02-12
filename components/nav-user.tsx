@@ -29,7 +29,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-import { signOutAction } from "@/app/actions/auth-actions"
+import { signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 export function NavUser({
@@ -42,12 +42,25 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
 
-  // SOLUCIÓN: Inicializamos el router aquí dentro
-  const router = useRouter() // Keep router for other nav but not for logout if possible, or just keep it.
+  // Helper: extract smart initials from name or email
+  const getInitials = (name: string) => {
+    if (name.includes("@")) {
+      // Email: take first 2 chars of local part
+      return name.split("@")[0].substring(0, 2).toUpperCase()
+    }
+    // Name: take first letter of first two words
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
 
   const handleLogout = async () => {
-    await signOutAction()
+    await signOut({ redirect: false })
+    window.location.href = "/login"
   }
 
   const goToSettings = (tab: string) => {
@@ -66,7 +79,7 @@ export function NavUser({
               <Avatar className="h-8 w-8 rounded-lg border border-slate-200">
                 <AvatarImage src={user.avatar} alt={user.name} />
                 <AvatarFallback className="rounded-lg font-bold bg-blue-900 text-white">
-                  {user.name.substring(0, 2).toUpperCase()}
+                  {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
@@ -88,7 +101,7 @@ export function NavUser({
                 <Avatar className="h-8 w-8 rounded-lg border border-slate-100">
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="rounded-lg bg-blue-900 text-white font-bold">
-                    {user.name.substring(0, 2).toUpperCase()}
+                    {getInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">

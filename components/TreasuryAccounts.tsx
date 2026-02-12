@@ -45,7 +45,7 @@ const Currency = ({ amount, className }: { amount: number, className?: string })
 );
 
 export default function TreasuryAccounts() {
-    const { cuentas, setCuentas, systemLog, setSystemLog, addToLog, fuentes, presupuesto, setEgresosContables } = useTreasury();
+    const { cuentas, setCuentas, systemLog, setSystemLog, addToLog, fuentes, presupuesto, setEgresosContables, proveedores, departamentos } = useTreasury();
     const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
 
     // Modales
@@ -615,6 +615,8 @@ export default function TreasuryAccounts() {
                             fuentes={fuentes}
                             selectedCapitulo={selectedCapitulo}
                             setSelectedCapitulo={setSelectedCapitulo}
+                            proveedores={proveedores}
+                            departamentos={departamentos}
                         />
                     ) : (
                         <div className="py-4 space-y-4"><div className="space-y-2"><Label>Monto</Label><div className="relative"><span className="absolute left-3 top-2.5 text-lg font-bold text-muted-foreground">$</span><Input value={newAmount} onChange={(e) => setNewAmount(e.target.value)} type="number" className="pl-8 text-2xl font-bold font-mono h-14" placeholder="0.00" autoFocus /></div></div><div className="space-y-2"><Label>Concepto</Label><Input value={newConcept} onChange={(e) => setNewConcept(e.target.value)} /></div></div>

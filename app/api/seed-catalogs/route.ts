@@ -34,20 +34,29 @@ const INITIAL_DEPARTAMENTOS = [
 
 export async function GET() {
     try {
-        // Check if Fuentes table is empty
-        const fuentesCount = await prisma.fuente.count()
+        // Fetch default organization for seeding
+        const org = await prisma.organization.findFirst();
+        if (!org) {
+            return NextResponse.json({ success: false, message: "No organization found. Please register an organization first." }, { status: 400 });
+        }
+        const organizationId = org.id;
+
+        // Check if Fuentes table is empty for this org
+        const fuentesCount = await prisma.fuente.count({ where: { organizationId } })
         if (fuentesCount === 0) {
+            const dataToSeed = INITIAL_FUENTES.map(f => ({ ...f, organizationId }));
             await prisma.fuente.createMany({
-                data: INITIAL_FUENTES
+                data: dataToSeed
             })
             console.log("Seeded Fuentes table with initial data")
         }
 
-        // Check if Departamentos table is empty
-        const departamentosCount = await prisma.departamento.count()
+        // Check if Departamentos table is empty for this org
+        const departamentosCount = await prisma.departamento.count({ where: { organizationId } })
         if (departamentosCount === 0) {
+            const dataToSeed = INITIAL_DEPARTAMENTOS.map(d => ({ ...d, organizationId }));
             await prisma.departamento.createMany({
-                data: INITIAL_DEPARTAMENTOS
+                data: dataToSeed
             })
             console.log("Seeded Departamentos table with initial data")
         }

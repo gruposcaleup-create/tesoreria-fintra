@@ -1,12 +1,14 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import {
     Building2, User, Search, Filter, MoreHorizontal, Plus,
     FileText, ShieldAlert, CheckCircle2, AlertTriangle,
     CreditCard, ExternalLink, Paperclip, Phone, Mail, MapPin,
-    UploadCloud, FileCheck, Eye, Download
+    UploadCloud, FileCheck, Eye, Download, Loader2
 } from "lucide-react"
+import { parseCSF, type CSFData } from "@/lib/parse-csf"
+import { useTreasury, type Proveedor, type EstatusProveedor, type RiesgoSAT } from "./providers/treasury-context"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,36 +26,190 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-// --- TYPES ---
-
-type EstatusProveedor = "Activo" | "Bloqueado" | "En Revisión";
-type RiesgoSAT = "Sin Riesgo" | "Observado (69-B)" | "Opinión Negativa";
-
-interface Proveedor {
-    id: string;
-    razonSocial: string;
-    rfc: string;
-    tipo: "Persona Moral" | "Persona Física";
-    representanteLegal: string;
-    email: string;
-    telefono: string;
-    clabe: string;
-    banco: string;
-    estatus: EstatusProveedor;
-    riesgoSat: RiesgoSAT;
-    ultimaActualizacion: string;
-    documentosEntregados: number; // de 5 obligatorios
+function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
-// --- MOCK DATA ---
-const DATA_PROVEEDORES: Proveedor[] = [];
-
 export default function SupplierManagement() {
-    const [proveedores, setProveedores] = useState<Proveedor[]>(DATA_PROVEEDORES);
+    const { proveedores, addProveedor } = useTreasury()
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedProvider, setSelectedProvider] = useState<Proveedor | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isNewOpen, setIsNewOpen] = useState(false);
+
+    // --- Nuevo Proveedor form state ---
+    const [newRfc, setNewRfc] = useState("");
+    const [newRazonSocial, setNewRazonSocial] = useState("");
+    const [newTipo, setNewTipo] = useState("");
+    const [newRegimen, setNewRegimen] = useState("");
+    const [newCodigoPostal, setNewCodigoPostal] = useState("");
+    const [csfFile, setCsfFile] = useState<File | null>(null);
+    const [actaFile, setActaFile] = useState<File | null>(null);
+    const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
+
+    // --- Contacto Comercial ---
+    const [newEmail, setNewEmail] = useState("");
+    const [newTelefono, setNewTelefono] = useState("");
+    const [newRepresentante, setNewRepresentante] = useState("");
+
+    // --- Datos Bancarios ---
+    const [newClabe, setNewClabe] = useState("");
+    const [newBanco, setNewBanco] = useState("");
+
+    // --- PDF Parsing state ---
+    const [isParsing, setIsParsing] = useState(false);
+    const [parseProgress, setParseProgress] = useState(0);
+    const [parseSuccess, setParseSuccess] = useState(false);
+    const [parseError, setParseError] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const csfFileRef = useRef<HTMLInputElement>(null);
+
+    // Reset form when dialog closes
+    const handleNewDialogChange = (open: boolean) => {
+        setIsNewOpen(open);
+        if (!open) {
+            setNewRfc("");
+            setNewRazonSocial("");
+            setNewTipo("");
+            setNewRegimen("");
+            setNewCodigoPostal("");
+            setCsfFile(null);
+            setActaFile(null);
+            setComprobanteFile(null);
+            setNewEmail("");
+            setNewTelefono("");
+            setNewRepresentante("");
+            setNewClabe("");
+            setNewBanco("");
+            setIsParsing(false);
+            setParseProgress(0);
+            setParseSuccess(false);
+            setParseError(null);
+            setSaveError(null);
+        }
+    };
+
+    // Handle CSF PDF file selection
+    const handleCSFUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setCsfFile(file); // Keep reference for save
+        setIsParsing(true);
+        setParseProgress(0);
+        setParseSuccess(false);
+        setParseError(null);
+        setSaveError(null);
+
+        try {
+            const data = await parseCSF(file, (percent) => {
+                setParseProgress(percent);
+            });
+
+            // Auto-fill form fields
+            if (data.rfc) setNewRfc(data.rfc);
+            if (data.razonSocial) setNewRazonSocial(data.razonSocial);
+            if (data.tipoPersona) setNewTipo(data.tipoPersona);
+            if (data.regimenClave) setNewRegimen(data.regimenClave);
+            if (data.codigoPostal) setNewCodigoPostal(data.codigoPostal);
+            // Email is excluded from auto-fill — must be entered manually
+            if (data.telefono) setNewTelefono(data.telefono);
+            if (data.representanteLegal) setNewRepresentante(data.representanteLegal);
+
+            setParseSuccess(true);
+        } catch (err: any) {
+            console.error("[CSF Parser] Error:", err);
+            setParseError(err.message || "Error al procesar el PDF.");
+        } finally {
+            setIsParsing(false);
+        }
+    };
+
+    // Handle save new provider
+    const handleSaveProveedor = async () => {
+        setSaveError(null);
+
+        // Validate required fields
+        if (!newRfc.trim()) {
+            setSaveError("El RFC es obligatorio.");
+            return;
+        }
+        if (!newRazonSocial.trim()) {
+            setSaveError("La Razón Social es obligatoria.");
+            return;
+        }
+
+        // Convert PDF to base64 if available
+        let pdfBase64: string | undefined;
+        let pdfName: string | undefined;
+        if (csfFile) {
+            try {
+                pdfBase64 = await fileToBase64(csfFile);
+                pdfName = csfFile.name;
+            } catch (err) {
+                console.error("Error converting PDF:", err);
+            }
+        }
+
+        // Convert Acta Constitutiva to base64
+        let actaB64: string | undefined;
+        let actaName: string | undefined;
+        if (actaFile) {
+            try {
+                actaB64 = await fileToBase64(actaFile);
+                actaName = actaFile.name;
+            } catch (err) {
+                console.error("Error converting Acta:", err);
+            }
+        }
+
+        // Convert Comprobante de Domicilio to base64
+        let compB64: string | undefined;
+        let compName: string | undefined;
+        if (comprobanteFile) {
+            try {
+                compB64 = await fileToBase64(comprobanteFile);
+                compName = comprobanteFile.name;
+            } catch (err) {
+                console.error("Error converting Comprobante:", err);
+            }
+        }
+
+        const tipoLabel = newTipo === "moral" ? "Persona Moral" : "Persona Física";
+        const docsCount = [csfFile, actaFile, comprobanteFile].filter(Boolean).length;
+
+        const nuevo: Proveedor = {
+            id: crypto.randomUUID(),
+            rfc: newRfc.trim(),
+            razonSocial: newRazonSocial.trim(),
+            tipo: tipoLabel as "Persona Moral" | "Persona Física",
+            codigoPostal: newCodigoPostal.trim(),
+            regimenFiscal: newRegimen,
+            representanteLegal: newRepresentante.trim(),
+            email: newEmail.trim(),
+            telefono: newTelefono.trim(),
+            clabe: newClabe.trim(),
+            banco: newBanco.trim(),
+            estatus: "En Revisión",
+            riesgoSat: "Sin Riesgo",
+            ultimaActualizacion: new Date().toISOString().split("T")[0],
+            documentosEntregados: docsCount,
+            csfPdfBase64: pdfBase64,
+            csfFileName: pdfName,
+            actaBase64: actaB64,
+            actaFileName: actaName,
+            comprobanteBase64: compB64,
+            comprobanteFileName: compName,
+        };
+
+        addProveedor(nuevo);
+        handleNewDialogChange(false);
+    };
 
     // Filtrado
     const filteredData = proveedores.filter(p =>
@@ -508,13 +664,65 @@ export default function SupplierManagement() {
             {/* ==================================================================================== */}
             {/* MODAL: NUEVO PROVEEDOR (MANTENIDO IGUAL) */}
             {/* ==================================================================================== */}
-            <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-                <DialogContent className="max-w-2xl">
+            <Dialog open={isNewOpen} onOpenChange={handleNewDialogChange}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Registrar Nuevo Proveedor</DialogTitle>
                         <DialogDescription>Complete los datos fiscales y adjunte la documentación obligatoria.</DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-6">
+                        {/* SECCIÓN 0: CARGA INTELIGENTE DE CONSTANCIA */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <UploadCloud className="w-4 h-4" /> Carga Inteligente
+                            </h3>
+                            <div
+                                className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${parseSuccess
+                                    ? "border-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20 dark:border-emerald-600"
+                                    : parseError
+                                        ? "border-red-400 bg-red-50/50 dark:bg-red-900/20 dark:border-red-600"
+                                        : "border-border bg-muted/30 hover:border-primary hover:bg-primary/5"
+                                    }`}
+                                onClick={() => csfFileRef.current?.click()}
+                            >
+                                <input
+                                    ref={csfFileRef}
+                                    type="file"
+                                    accept=".pdf,application/pdf"
+                                    className="hidden"
+                                    onChange={handleCSFUpload}
+                                />
+                                {isParsing ? (
+                                    <div className="space-y-3">
+                                        <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
+                                        <p className="text-sm font-medium text-foreground">Procesando Constancia...</p>
+                                        <Progress value={parseProgress} className="w-full max-w-xs mx-auto h-2" />
+                                        <p className="text-xs text-muted-foreground">{parseProgress}%</p>
+                                    </div>
+                                ) : parseSuccess ? (
+                                    <div className="space-y-2">
+                                        <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-600 dark:text-emerald-400" />
+                                        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Datos llenos correctamente</p>
+                                        <p className="text-xs text-muted-foreground">Los campos se llenaron automáticamente desde el PDF.</p>
+                                    </div>
+                                ) : parseError ? (
+                                    <div className="space-y-2">
+                                        <AlertTriangle className="w-8 h-8 mx-auto text-red-500" />
+                                        <p className="text-sm font-semibold text-red-600 dark:text-red-400">{parseError}</p>
+                                        <p className="text-xs text-muted-foreground">Intente con otro archivo PDF.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <UploadCloud className="w-8 h-8 mx-auto text-muted-foreground" />
+                                        <p className="text-sm font-medium text-foreground">Suba la Constancia de Situación Fiscal</p>
+                                        <p className="text-xs text-muted-foreground">Formato PDF • Se extraerán los datos automáticamente</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <Separator />
+
                         {/* SECCIÓN 1: DATOS FISCALES */}
                         <div className="space-y-4">
                             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -523,12 +731,19 @@ export default function SupplierManagement() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>RFC <span className="text-red-500">*</span></Label>
-                                    <Input placeholder="XAXX010101000" className="font-mono uppercase" />
+                                    <Input
+                                        placeholder="XAXX010101000"
+                                        className={`font-mono uppercase ${parseSuccess && newRfc ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}`}
+                                        value={newRfc}
+                                        onChange={(e) => setNewRfc(e.target.value.toUpperCase())}
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Tipo de Persona</Label>
-                                    <Select>
-                                        <SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger>
+                                    <Select value={newTipo} onValueChange={setNewTipo}>
+                                        <SelectTrigger className={parseSuccess && newTipo ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}>
+                                            <SelectValue placeholder="Seleccione" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="moral">Moral (Empresa)</SelectItem>
                                             <SelectItem value="fisica">Física</SelectItem>
@@ -537,12 +752,29 @@ export default function SupplierManagement() {
                                 </div>
                                 <div className="col-span-2 space-y-2">
                                     <Label>Razón Social / Nombre Completo <span className="text-red-500">*</span></Label>
-                                    <Input placeholder="Tal cual aparece en la Constancia" />
+                                    <Input
+                                        placeholder="Tal cual aparece en la Constancia"
+                                        className={parseSuccess && newRazonSocial ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}
+                                        value={newRazonSocial}
+                                        onChange={(e) => setNewRazonSocial(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Código Postal</Label>
+                                    <Input
+                                        placeholder="00000"
+                                        className={`font-mono ${parseSuccess && newCodigoPostal ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}`}
+                                        value={newCodigoPostal}
+                                        onChange={(e) => setNewCodigoPostal(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                                        maxLength={5}
+                                    />
                                 </div>
                                 <div className="col-span-2 space-y-2">
                                     <Label>Régimen Fiscal Principal</Label>
-                                    <Select>
-                                        <SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger>
+                                    <Select value={newRegimen} onValueChange={setNewRegimen}>
+                                        <SelectTrigger className={parseSuccess && newRegimen ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}>
+                                            <SelectValue placeholder="Seleccione" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="601">601 - General de Ley Personas Morales</SelectItem>
                                             <SelectItem value="603">603 - Personas Morales con Fines no Lucrativos</SelectItem>
@@ -569,7 +801,73 @@ export default function SupplierManagement() {
                             </div>
                         </div>
                         <Separator />
-                        {/* SECCIÓN 2: CARGA DE DOCUMENTOS INICIALES */}
+
+                        {/* SECCIÓN 2: CONTACTO COMERCIAL */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <Phone className="w-4 h-4" /> Contacto Comercial
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Correo Electrónico</Label>
+                                    <Input
+                                        placeholder="correo@empresa.com"
+                                        type="email"
+                                        className={parseSuccess && newEmail ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}
+                                        value={newEmail}
+                                        onChange={(e) => setNewEmail(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Teléfono</Label>
+                                    <Input
+                                        placeholder="55 1234 5678"
+                                        className={parseSuccess && newTelefono ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}
+                                        value={newTelefono}
+                                        onChange={(e) => setNewTelefono(e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-2 space-y-2">
+                                    <Label>Representante Legal</Label>
+                                    <Input
+                                        placeholder="Nombre completo del representante"
+                                        className={parseSuccess && newRepresentante ? "border-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10" : ""}
+                                        value={newRepresentante}
+                                        onChange={(e) => setNewRepresentante(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <Separator />
+
+                        {/* SECCIÓN 3: DATOS BANCARIOS */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <CreditCard className="w-4 h-4" /> Datos Bancarios
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>CLABE Interbancaria</Label>
+                                    <Input
+                                        placeholder="18 dígitos"
+                                        className="font-mono"
+                                        value={newClabe}
+                                        onChange={(e) => setNewClabe(e.target.value.replace(/\D/g, "").slice(0, 18))}
+                                        maxLength={18}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Banco</Label>
+                                    <Input
+                                        placeholder="Nombre del banco"
+                                        value={newBanco}
+                                        onChange={(e) => setNewBanco(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <Separator />
+                        {/* SECCIÓN 2: CARGA DE DOCUMENTOS ADICIONALES */}
                         <div className="space-y-4">
                             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                                 <FileCheck className="w-4 h-4" /> Documentación SAT (Obligatoria)
@@ -577,24 +875,45 @@ export default function SupplierManagement() {
                             <div className="grid grid-cols-1 gap-4">
                                 <div className="border border-dashed border-border rounded-lg p-4 bg-muted/30 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="bg-background p-2 rounded border shadow-sm"><FileText className="w-5 h-5 text-red-600 dark:text-red-400" /></div>
-                                        <div><p className="text-sm font-medium text-foreground">Constancia de Situación Fiscal</p><p className="text-xs text-muted-foreground">PDF reciente (Máx. 3 meses)</p></div>
-                                    </div>
-                                    <Input type="file" className="w-[120px] text-xs" />
-                                </div>
-                                <div className="border border-dashed border-border rounded-lg p-4 bg-muted/30 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
                                         <div className="bg-background p-2 rounded border shadow-sm"><FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /></div>
                                         <div><p className="text-sm font-medium text-foreground">Opinión de Cumplimiento (32-D)</p><p className="text-xs text-muted-foreground">Debe ser POSITIVA</p></div>
                                     </div>
                                     <Input type="file" className="w-[120px] text-xs" />
                                 </div>
+                                <div className="border border-dashed border-border rounded-lg p-4 bg-muted/30 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-background p-2 rounded border shadow-sm"><FileText className="w-5 h-5 text-amber-600 dark:text-amber-400" /></div>
+                                        <div><p className="text-sm font-medium text-foreground">Acta Constitutiva</p><p className="text-xs text-muted-foreground">Escritura Pública</p></div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {actaFile && <span className="text-xs text-emerald-600 dark:text-emerald-400 truncate max-w-[100px]">{actaFile.name}</span>}
+                                        <Input type="file" className="w-[120px] text-xs" onChange={(e) => setActaFile(e.target.files?.[0] || null)} />
+                                    </div>
+                                </div>
+                                <div className="border border-dashed border-border rounded-lg p-4 bg-muted/30 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-background p-2 rounded border shadow-sm"><FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" /></div>
+                                        <div><p className="text-sm font-medium text-foreground">Comprobante de Domicilio</p><p className="text-xs text-muted-foreground">Luz, Agua o Teléfono (Reciente)</p></div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {comprobanteFile && <span className="text-xs text-emerald-600 dark:text-emerald-400 truncate max-w-[100px]">{comprobanteFile.name}</span>}
+                                        <Input type="file" className="w-[120px] text-xs" onChange={(e) => setComprobanteFile(e.target.files?.[0] || null)} />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                    {saveError && (
+                        <div className="mx-6 mb-2 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                            <p className="text-sm text-red-700 dark:text-red-400 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" />
+                                {saveError}
+                            </p>
+                        </div>
+                    )}
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsNewOpen(false)}>Cancelar</Button>
-                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => setIsNewOpen(false)}>Guardar y Crear Expediente</Button>
+                        <Button variant="outline" onClick={() => handleNewDialogChange(false)}>Cancelar</Button>
+                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleSaveProveedor}>Guardar y Crear Expediente</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
