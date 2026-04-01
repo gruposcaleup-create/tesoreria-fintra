@@ -3,6 +3,15 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -26,7 +35,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Plus, CalendarIcon, BookOpen } from "lucide-react"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Plus, CalendarIcon, BookOpen, Check, ChevronsUpDown } from "lucide-react"
 import { format, isValid, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -117,9 +134,12 @@ export function AddIngresoDialog({ onSave, initialData, open: controlledOpen, on
   const [selectedCapitulo, setSelectedCapitulo] = React.useState("")
   const [selectedCRI, setSelectedCRI] = React.useState("")
   const [cuentaContable, setCuentaContable] = React.useState("")
+  const [openCRI, setOpenCRI] = React.useState(false)
+  const [criSearch, setCriSearch] = React.useState("")
 
   // Estados para Reportes Adicionales
   const [reportType, setReportType] = React.useState<"none" | "predial" | "otros">("none")
+  const [validationError, setValidationError] = React.useState<string | null>(null)
 
   // Estado para Reportes Adicionales (Unificad para Otros y Predial)
   const [reportData, setReportData] = React.useState({
@@ -288,7 +308,7 @@ export function AddIngresoDialog({ onSave, initialData, open: controlledOpen, on
       });
 
       if (missingFields.length > 0) {
-        alert(`Faltan datos obligatorios para el reporte Predial: ${missingFields.join(", ")}`);
+        setValidationError(`Faltan datos obligatorios para el reporte Predial: ${missingFields.join(", ")}`);
         return;
       }
     }
@@ -422,602 +442,661 @@ export function AddIngresoDialog({ onSave, initialData, open: controlledOpen, on
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      {!initialData && (
-        <DialogTrigger asChild>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Agregar Ingreso
-          </Button>
-        </DialogTrigger>
-      )}
-      <DialogContent className="!max-w-[95vw] !h-[95vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 border-b shrink-0">
-          <DialogTitle>Registrar Nuevo Ingreso</DialogTitle>
-          <DialogDescription>
-            Ingresa los detalles del ingreso municipal o fiscal aquí.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid gap-4">
+    <>
+      <AlertDialog open={!!validationError} onOpenChange={(open) => { if (!open) setValidationError(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">⚠️ Datos Incompletos</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {validationError}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setValidationError(null)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        {!initialData && (
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Agregar Ingreso
+            </Button>
+          </DialogTrigger>
+        )}
+        <DialogContent className="!max-w-[95vw] !h-[95vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b shrink-0">
+            <DialogTitle>Registrar Nuevo Ingreso</DialogTitle>
+            <DialogDescription>
+              Ingresa los detalles del ingreso municipal o fiscal aquí.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="grid gap-4">
 
-            {/* SECCIÓN CONTABLE - CAPÍTULO Y PARTIDA */}
-            <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-              <h3 className="font-semibold text-sm">Clasificación CRI</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="capitulo" className="text-xs font-semibold uppercase text-slate-500">
-                    Capítulo
-                  </Label>
-                  <Select
-                    value={selectedCapitulo}
-                    onValueChange={(val) => {
-                      setSelectedCapitulo(val);
-                      setSelectedCRI("");
-                      setCuentaContable("");
-                    }}
-                  >
-                    <SelectTrigger className="font-mono text-xs">
-                      <SelectValue placeholder="Seleccionar capítulo" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {capitulos.map((cap) => (
-                        <SelectItem key={cap.codigo} value={cap.codigo}>
-                          {cap.codigo} - {cap.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* SECCIÓN CONTABLE - CAPÍTULO Y PARTIDA */}
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <h3 className="font-semibold text-sm">Clasificación CRI</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="capitulo" className="text-xs font-semibold uppercase text-slate-500">
+                      Capítulo
+                    </Label>
+                    <Select
+                      value={selectedCapitulo}
+                      onValueChange={(val) => {
+                        setSelectedCapitulo(val);
+                        setSelectedCRI("");
+                        setCuentaContable("");
+                      }}
+                    >
+                      <SelectTrigger className="font-mono text-xs h-auto min-h-[2.5rem] py-2 text-left [&>span]:whitespace-normal [&>span]:line-clamp-2">
+                        <SelectValue placeholder="Seleccionar capítulo" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] max-w-[min(500px,45vw)]">
+                        {capitulos.map((cap) => (
+                          <SelectItem key={cap.codigo} value={cap.codigo} className="[&>span]:whitespace-normal [&>span]:py-1">
+                            <span className="font-semibold">{cap.codigo}</span> — {cap.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="cri" className="text-xs font-semibold uppercase text-slate-500">
-                    Partida Genérica
-                  </Label>
-                  <Select
-                    value={selectedCRI}
-                    onValueChange={(val) => {
-                      // Encontrar el item seleccionado por CRI o codigo
-                      const selectedItem = RAW_CRI_DATA.find(item =>
-                        item.cri === val || item.codigo === val
-                      );
-
-                      if (selectedItem) {
-                        setSelectedCRI(selectedItem.cri || selectedItem.codigo);
-                        setCuentaContable(selectedItem.codigo);
-                      }
-                    }}
-                    disabled={!selectedCapitulo}
-                    required
-                  >
-                    <SelectTrigger className="font-mono text-xs">
-                      <SelectValue placeholder={selectedCapitulo ? "Seleccionar partida" : "Seleccione capítulo primero"} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px] max-w-[500px]">
-                      {selectedCapitulo && RAW_CRI_DATA
-                        .filter(item =>
-                          item.codigo.startsWith(selectedCapitulo) &&
-                          item.cri &&
-                          item.cri.length >= 4  // Solo mostrar los que tienen CRI de al menos 4 dígitos
-                        )
-                        .map((item) => {
-                          const val = item.cri || item.codigo;
-                          const display = item.cri ? `${item.cri} - ${item.nombre}` : `${item.codigo} - ${item.nombre}`;
-                          return (
-                            <SelectItem key={item.codigo} value={val}>
-                              <span className="block truncate max-w-[450px]" title={display}>
-                                {display}
-                              </span>
-                            </SelectItem>
-                          );
-                        })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cuentaContable" className="text-xs font-semibold uppercase text-slate-500">
-                  Cuenta Contable
-                </Label>
-                <div className="relative">
-                  <BookOpen className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="cuentaContable"
-                    value={cuentaContable}
-                    readOnly
-                    placeholder="Se llena automáticamente"
-                    className="pl-9 font-mono text-xs bg-slate-100 text-slate-500 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Campo: Concepto */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="concepto" className="text-right">
-                Concepto
-              </Label>
-              <Input
-                id="concepto"
-                value={concepto}
-                onChange={(e) => setConcepto(e.target.value)}
-                placeholder="Ej. Impuesto Predial"
-                className="col-span-3"
-              />
-            </div>
-
-            {/* Campo: Fuente */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fuente" className="text-right">
-                Fuente
-              </Label>
-              <Select onValueChange={setFuente}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Selecciona fuente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Recursos Propios">Recursos Propios</SelectItem>
-                  <SelectItem value="Participaciones Federales">Participaciones Federales</SelectItem>
-                  <SelectItem value="Aportaciones (Ramo 33)">Aportaciones (Ramo 33)</SelectItem>
-                  <SelectItem value="Otros Ingresos">Otros Ingresos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-
-            {/* Campo: Cuenta Bancaria Destino */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="banco" className="text-right">
-                Destino
-              </Label>
-              <Select onValueChange={setCuentaBancaria} value={cuentaBancaria}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Seleccionar Cuenta Bancaria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cuentas.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.banco} - {c.alias} (**{c.numeroCuenta.slice(-4)})
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="CAJA_GENERAL">Caja General (Efectivo)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Campo: Monto */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="monto" className="text-right">
-                Monto
-              </Label>
-              <Input
-                id="monto"
-                type="text"
-                value={monto}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
-                  const parts = value.split('.');
-                  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                  setMonto(parts.join('.'));
-                }}
-                placeholder="0.00"
-                className="col-span-3"
-              />
-            </div>
-
-            {/* Campo: Fecha (CORREGIDO) */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Fecha</Label>
-
-              {/* CORRECCIÓN: modal={true} permite interactuar con el calendario dentro del Dialog */}
-              <Popover modal={true}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    type="button"
-                    className={cn(
-                      "col-span-3 justify-start text-left font-normal",
-                      !fecha && "text-muted-foreground"
+                  <div className="space-y-2 flex flex-col relative">
+                    <Label htmlFor="cri" className="text-xs font-semibold uppercase text-slate-500">
+                      Partida Genérica
+                    </Label>
+                    {/* Trigger button */}
+                    <Button
+                      variant="outline"
+                      type="button"
+                      disabled={!selectedCapitulo}
+                      onClick={() => setOpenCRI(!openCRI)}
+                      className="w-full justify-between font-mono text-xs text-left h-auto min-h-[2.5rem] py-2 px-3 font-normal whitespace-normal"
+                    >
+                      <span className="line-clamp-2 text-left">
+                        {selectedCRI
+                          ? (() => {
+                            const item = RAW_CRI_DATA.find(i => (i.cri || i.codigo) === selectedCRI)
+                            return item ? `${item.cri || item.codigo} — ${item.nombre}` : "Seleccionar partida"
+                          })()
+                          : (selectedCapitulo ? "Buscar partida..." : "Seleccione capítulo primero")}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                    {/* Inline searchable dropdown */}
+                    {openCRI && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover shadow-lg">
+                        <div className="flex items-center border-b px-3 py-2">
+                          <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          <input
+                            autoFocus
+                            placeholder="Buscar por nombre o código..."
+                            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            value={criSearch}
+                            onChange={(e) => setCriSearch(e.target.value)}
+                          />
+                        </div>
+                        <div className="max-h-[300px] overflow-y-auto overscroll-contain p-1">
+                          {(() => {
+                            const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+                            const filtered = selectedCapitulo
+                              ? RAW_CRI_DATA
+                                .filter(item =>
+                                  item.codigo.startsWith(selectedCapitulo) &&
+                                  item.cri &&
+                                  item.cri.length >= 4
+                                )
+                                .filter(item => {
+                                  if (!criSearch) return true
+                                  const searchNorm = normalize(criSearch)
+                                  const val = item.cri || item.codigo
+                                  return normalize(`${val} ${item.nombre}`).includes(searchNorm)
+                                })
+                              : []
+                            if (filtered.length === 0) {
+                              return <p className="py-4 text-center text-sm text-muted-foreground">No se encontró partida.</p>
+                            }
+                            return filtered.map((item) => {
+                              const val = item.cri || item.codigo
+                              return (
+                                <button
+                                  key={item.codigo}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedCRI(val)
+                                    setCuentaContable(item.codigo)
+                                    setOpenCRI(false)
+                                    setCriSearch("")
+                                  }}
+                                  className={cn(
+                                    "flex w-full items-start gap-2 rounded-sm px-2 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                    selectedCRI === val && "bg-accent"
+                                  )}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "h-4 w-4 shrink-0 mt-0.5",
+                                      selectedCRI === val ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <span className="font-mono shrink-0 font-semibold">{val}</span>
+                                  <span className="text-left break-words whitespace-normal leading-snug">{item.nombre}</span>
+                                </button>
+                              )
+                            })
+                          })()}
+                        </div>
+                      </div>
                     )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fecha ? format(fecha, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-                  </Button>
-                </PopoverTrigger>
+                  </div>
+                </div>
 
-                {/* CORRECCIÓN: z-50 asegura que el calendario se vea por encima de todo */}
-                <PopoverContent className="w-auto p-0 z-50" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fecha}
-                    onSelect={setFecha}
-                    initialFocus
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* SECCIÓN REPORTES OPCIONALES */}
-            <div className="space-y-4 pt-4 border-t mt-4">
-              <Label className="text-base font-semibold">Opciones de Reporte</Label>
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant={reportType === "predial" ? "default" : "outline"}
-                  onClick={() => setReportType(reportType === "predial" ? "none" : "predial")}
-                  className="w-1/2"
-                >
-                  Reporte ingreso predial
-                </Button>
-                <Button
-                  type="button"
-                  variant={reportType === "otros" ? "default" : "outline"}
-                  onClick={() => setReportType(reportType === "otros" ? "none" : "otros")}
-                  className="w-1/2"
-                >
-                  Reporte otros ingresos
-                </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="cuentaContable" className="text-xs font-semibold uppercase text-slate-500">
+                    Cuenta Contable
+                  </Label>
+                  <div className="relative">
+                    <BookOpen className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="cuentaContable"
+                      value={cuentaContable}
+                      readOnly
+                      placeholder="Se llena automáticamente"
+                      className="pl-9 font-mono text-xs bg-slate-100 text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {reportType === "predial" && (
-                <div className="space-y-6 mt-4 p-4 border rounded-lg bg-slate-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <h3 className="font-bold text-lg text-slate-800">Reporte de Ingreso Predial</h3>
-                    <span className="text-xs text-slate-500">Complete los campos para el recibo oficial</span>
-                  </div>
+              {/* Campo: Concepto */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="concepto" className="text-right">
+                  Concepto
+                </Label>
+                <Input
+                  id="concepto"
+                  value={concepto}
+                  onChange={(e) => setConcepto(e.target.value)}
+                  placeholder="Ej. Impuesto Predial"
+                  className="col-span-3"
+                />
+              </div>
 
-                  {/* 1. Identificación y Control */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">1. Identificación y Control</h4>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="predialFolio" className="text-xs">Folio</Label>
-                        <Input
-                          id="predialFolio"
-                          className="h-8 font-mono"
-                          value={reportData.folio}
-                          onChange={(e) => handleReportDataChange("folio", e.target.value)}
-                          placeholder="Automatico o Manual"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="predialCajero" className="text-xs">Cajero</Label>
-                        <Input
-                          id="predialCajero"
-                          className="h-8"
-                          value={reportData.numeroCajero}
-                          onChange={(e) => handleReportDataChange("numeroCajero", e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1 flex flex-col pt-5">
-                        <Label className="text-xs mb-1 sr-only">Fecha de Cobro</Label>
-                        <Popover modal={true}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "h-8 w-full justify-start text-left font-normal text-xs",
-                                !reportData.fechaCobro && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-3 w-3" />
-                              {reportData.fechaCobro ? (() => {
-                                try {
-                                  let date = parseISO(reportData.fechaCobro);
-                                  if (!isValid(date)) date = new Date(reportData.fechaCobro + 'T00:00:00');
-                                  return isValid(date) ? format(date, "PPP", { locale: es }) : reportData.fechaCobro;
-                                } catch (e) { return reportData.fechaCobro; }
-                              })() : <span>Fecha Cobro</span>}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-50">
-                            <Calendar
-                              mode="single"
-                              // Convert YYYY-MM-DD string back to Date for the calendar
-                              selected={reportData.fechaCobro ? (() => {
-                                try {
-                                  let date = parseISO(reportData.fechaCobro);
-                                  if (!isValid(date)) date = new Date(reportData.fechaCobro + 'T00:00:00');
-                                  return isValid(date) ? date : undefined;
-                                } catch (e) { return undefined; }
-                              })() : undefined}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const dateStr = format(date, "yyyy-MM-dd");
-                                  handleReportDataChange("fechaCobro", dateStr);
-                                  setFecha(date); // SYNC: Update main date
-                                }
-                              }}
-                              initialFocus
-                              locale={es}
-                            />
-                          </PopoverContent>
-                        </Popover>
+              {/* Campo: Fuente */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="fuente" className="text-right">
+                  Fuente
+                </Label>
+                <Select onValueChange={setFuente}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Selecciona fuente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Recursos Propios">Recursos Propios</SelectItem>
+                    <SelectItem value="Participaciones Federales">Participaciones Federales</SelectItem>
+                    <SelectItem value="Aportaciones (Ramo 33)">Aportaciones (Ramo 33)</SelectItem>
+                    <SelectItem value="Otros Ingresos">Otros Ingresos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+
+              {/* Campo: Cuenta Bancaria Destino */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="banco" className="text-right">
+                  Destino
+                </Label>
+                <Select onValueChange={setCuentaBancaria} value={cuentaBancaria}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Seleccionar Cuenta Bancaria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cuentas.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.banco} - {c.alias} (**{c.numeroCuenta.slice(-4)})
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="CAJA_GENERAL">Caja General (Efectivo)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Campo: Monto */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="monto" className="text-right">
+                  Monto
+                </Label>
+                <Input
+                  id="monto"
+                  type="text"
+                  value={monto}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9.]/g, '');
+                    const parts = value.split('.');
+                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                    setMonto(parts.join('.'));
+                  }}
+                  placeholder="0.00"
+                  className="col-span-3"
+                />
+              </div>
+
+              {/* Campo: Fecha (CORREGIDO) */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Fecha</Label>
+
+                {/* CORRECCIÓN: modal={true} permite interactuar con el calendario dentro del Dialog */}
+                <Popover modal={true}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      type="button"
+                      className={cn(
+                        "col-span-3 justify-start text-left font-normal",
+                        !fecha && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fecha ? format(fecha, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                    </Button>
+                  </PopoverTrigger>
+
+                  {/* CORRECCIÓN: z-50 asegura que el calendario se vea por encima de todo */}
+                  <PopoverContent className="w-auto p-0 z-50" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fecha}
+                      onSelect={setFecha}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* SECCIÓN REPORTES OPCIONALES */}
+              <div className="space-y-4 pt-4 border-t mt-4">
+                <Label className="text-base font-semibold">Opciones de Reporte</Label>
+                <div className="flex gap-4">
+                  <Button
+                    type="button"
+                    variant={reportType === "predial" ? "default" : "outline"}
+                    onClick={() => setReportType(reportType === "predial" ? "none" : "predial")}
+                    className="w-1/2"
+                  >
+                    Reporte ingreso predial
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={reportType === "otros" ? "default" : "outline"}
+                    onClick={() => setReportType(reportType === "otros" ? "none" : "otros")}
+                    className="w-1/2"
+                  >
+                    Reporte otros ingresos
+                  </Button>
+                </div>
+
+                {reportType === "predial" && (
+                  <div className="space-y-6 mt-4 p-4 border rounded-lg bg-slate-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h3 className="font-bold text-lg text-slate-800">Reporte de Ingreso Predial</h3>
+                      <span className="text-xs text-slate-500">Complete los campos para el recibo oficial</span>
+                    </div>
+
+                    {/* 1. Identificación y Control */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">1. Identificación y Control</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="predialFolio" className="text-xs">Folio</Label>
+                          <Input
+                            id="predialFolio"
+                            className="h-8 font-mono"
+                            value={reportData.folio}
+                            onChange={(e) => handleReportDataChange("folio", e.target.value)}
+                            placeholder="Automatico o Manual"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="predialCajero" className="text-xs">Cajero</Label>
+                          <Input
+                            id="predialCajero"
+                            className="h-8"
+                            value={reportData.numeroCajero}
+                            onChange={(e) => handleReportDataChange("numeroCajero", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1 flex flex-col pt-5">
+                          <Label className="text-xs mb-1 sr-only">Fecha de Cobro</Label>
+                          <Popover modal={true}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "h-8 w-full justify-start text-left font-normal text-xs",
+                                  !reportData.fechaCobro && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                {reportData.fechaCobro ? (() => {
+                                  try {
+                                    let date = parseISO(reportData.fechaCobro);
+                                    if (!isValid(date)) date = new Date(reportData.fechaCobro + 'T00:00:00');
+                                    return isValid(date) ? format(date, "PPP", { locale: es }) : reportData.fechaCobro;
+                                  } catch (e) { return reportData.fechaCobro; }
+                                })() : <span>Fecha Cobro</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-50">
+                              <Calendar
+                                mode="single"
+                                // Convert YYYY-MM-DD string back to Date for the calendar
+                                selected={reportData.fechaCobro ? (() => {
+                                  try {
+                                    let date = parseISO(reportData.fechaCobro);
+                                    if (!isValid(date)) date = new Date(reportData.fechaCobro + 'T00:00:00');
+                                    return isValid(date) ? date : undefined;
+                                  } catch (e) { return undefined; }
+                                })() : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    const dateStr = format(date, "yyyy-MM-dd");
+                                    handleReportDataChange("fechaCobro", dateStr);
+                                    setFecha(date); // SYNC: Update main date
+                                  }
+                                }}
+                                initialFocus
+                                locale={es}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* 2. Clave Catastral */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">2. Clave Catastral</h4>
-                    <div className="grid grid-cols-9 gap-2 text-center">
-                      <div className="space-y-1"><Label className="text-[10px]">Zona</Label><Input className="h-8 text-center px-1" value={reportData.zona} onChange={(e) => handleReportDataChange("zona", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Mpio</Label><Input className="h-8 text-center px-1" value={reportData.municipio} onChange={(e) => handleReportDataChange("municipio", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Loc</Label><Input className="h-8 text-center px-1" value={reportData.localidad} onChange={(e) => handleReportDataChange("localidad", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Reg</Label><Input className="h-8 text-center px-1" value={reportData.region} onChange={(e) => handleReportDataChange("region", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Manz</Label><Input className="h-8 text-center px-1" value={reportData.manzana} onChange={(e) => handleReportDataChange("manzana", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Lote</Label><Input className="h-8 text-center px-1" value={reportData.lote} onChange={(e) => handleReportDataChange("lote", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Nivel</Label><Input className="h-8 text-center px-1" value={reportData.nivel} onChange={(e) => handleReportDataChange("nivel", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">Depto</Label><Input className="h-8 text-center px-1" value={reportData.departamento} onChange={(e) => handleReportDataChange("departamento", e.target.value)} maxLength={3} /></div>
-                      <div className="space-y-1"><Label className="text-[10px]">DV</Label><Input className="h-8 text-center px-1" value={reportData.digitoVerificador} onChange={(e) => handleReportDataChange("digitoVerificador", e.target.value)} maxLength={3} /></div>
-                    </div>
-                  </div>
-
-                  {/* 3. Información del Contribuyente y Predio */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">3. Información del Contribuyente y Predio</h4>
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label className="text-right text-xs">Nombre</Label>
-                        <Input className="col-span-3 h-8" value={reportData.nombreContribuyente} onChange={(e) => handleReportDataChange("nombreContribuyente", e.target.value)} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs w-24 text-right">Tipo Predio</Label>
-                          <Select value={reportData.tipoPredio} onValueChange={(val) => handleReportDataChange("tipoPredio", val)}>
-                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="URBANO">URBANO</SelectItem>
-                              <SelectItem value="RUSTICO">RUSTICO</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs w-24 text-right">Periodo Pago</Label>
-                          <Input className="h-8" placeholder="Ej. 2024" value={reportData.periodo} onChange={(e) => handleReportDataChange("periodo", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label className="text-right text-xs">Ubicación</Label>
-                        <Input className="col-span-3 h-8" value={reportData.ubicacionPredio} onChange={(e) => handleReportDataChange("ubicacionPredio", e.target.value)} />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label className="text-right text-xs">Colonia</Label>
-                        <Input className="col-span-3 h-8" value={reportData.colonia} onChange={(e) => handleReportDataChange("colonia", e.target.value)} />
+                    {/* 2. Clave Catastral */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">2. Clave Catastral</h4>
+                      <div className="grid grid-cols-9 gap-2 text-center">
+                        <div className="space-y-1"><Label className="text-[10px]">Zona</Label><Input className="h-8 text-center px-1" value={reportData.zona} onChange={(e) => handleReportDataChange("zona", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Mpio</Label><Input className="h-8 text-center px-1" value={reportData.municipio} onChange={(e) => handleReportDataChange("municipio", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Loc</Label><Input className="h-8 text-center px-1" value={reportData.localidad} onChange={(e) => handleReportDataChange("localidad", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Reg</Label><Input className="h-8 text-center px-1" value={reportData.region} onChange={(e) => handleReportDataChange("region", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Manz</Label><Input className="h-8 text-center px-1" value={reportData.manzana} onChange={(e) => handleReportDataChange("manzana", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Lote</Label><Input className="h-8 text-center px-1" value={reportData.lote} onChange={(e) => handleReportDataChange("lote", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Nivel</Label><Input className="h-8 text-center px-1" value={reportData.nivel} onChange={(e) => handleReportDataChange("nivel", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Depto</Label><Input className="h-8 text-center px-1" value={reportData.departamento} onChange={(e) => handleReportDataChange("departamento", e.target.value)} maxLength={3} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">DV</Label><Input className="h-8 text-center px-1" value={reportData.digitoVerificador} onChange={(e) => handleReportDataChange("digitoVerificador", e.target.value)} maxLength={3} /></div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* 4. Liquidación del Impuesto */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">4. Liquidación del Impuesto</h4>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                      {/* Columna Izquierda */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Base del Impuesto</Label>
-                          <Input className="h-8 w-32 text-right" value={reportData.baseImpuesto} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("baseImpuesto", val); }} placeholder="0.00" />
+                    {/* 3. Información del Contribuyente y Predio */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">3. Información del Contribuyente y Predio</h4>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right text-xs">Nombre</Label>
+                          <Input className="col-span-3 h-8" value={reportData.nombreContribuyente} onChange={(e) => handleReportDataChange("nombreContribuyente", e.target.value)} />
                         </div>
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs font-semibold">Impuesto</Label>
-                          <Input className="h-8 w-32 text-right" value={reportData.impuesto} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("impuesto", val); }} placeholder="0.00" />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Adicional (o Otros)</Label>
-                          <Input className="h-8 w-32 text-right" value={reportData.importeAdicional} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("importeAdicional", val); }} placeholder="0.00" />
-                        </div>
-                      </div>
-                      {/* Columna Derecha */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Recargos</Label>
-                          <Input className="h-8 w-32 text-right" value={reportData.recargos} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("recargos", val); }} placeholder="0.00" />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Multa / Honorarios</Label>
-                          <div className="flex gap-1 w-32">
-                            <Input className="h-8 w-1/2 text-right px-1" value={reportData.multa} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("multa", val); }} placeholder="Mul" title="Multa" />
-                            <Input className="h-8 w-1/2 text-right px-1" value={reportData.honorarios} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("honorarios", val); }} placeholder="Hon" title="Honorarios" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs w-24 text-right">Tipo Predio</Label>
+                            <Select value={reportData.tipoPredio} onValueChange={(val) => handleReportDataChange("tipoPredio", val)}>
+                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="URBANO">URBANO</SelectItem>
+                                <SelectItem value="RUSTICO">RUSTICO</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs w-24 text-right">Periodo Pago</Label>
+                            <Input className="h-8" placeholder="Ej. 2024" value={reportData.periodo} onChange={(e) => handleReportDataChange("periodo", e.target.value)} />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between text-red-600">
-                          <Label className="text-xs">(-) Descuento</Label>
-                          <Input className="h-8 w-32 text-right text-red-600" value={reportData.pagarConDescuento} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("pagarConDescuento", val); }} placeholder="0.00" />
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right text-xs">Ubicación</Label>
+                          <Input className="col-span-3 h-8" value={reportData.ubicacionPredio} onChange={(e) => handleReportDataChange("ubicacionPredio", e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right text-xs">Colonia</Label>
+                          <Input className="col-span-3 h-8" value={reportData.colonia} onChange={(e) => handleReportDataChange("colonia", e.target.value)} />
                         </div>
                       </div>
                     </div>
-                    {/* Totales Predial */}
-                    <div className="mt-4 pt-4 border-t grid gap-3">
-                      <div className="flex items-center justify-between bg-slate-100 p-2 rounded">
-                        <Label className="font-bold text-sm">TOTAL A PAGAR</Label>
-                        <span className="font-mono font-bold text-lg">${reportData.totalPagar || "0.00"}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-slate-500">Total en Letra</Label>
-                        <Input className="h-8 bg-slate-50 text-xs" value={reportData.totalLetra} readOnly />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {reportType === "otros" && (
-                <div className="space-y-6 mt-4 p-4 border rounded-lg bg-slate-50 animate-in fade-in slide-in-from-top-2">
-
-                  {/* 1. Datos del Contribuyente */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1">1. Datos del Contribuyente</h4>
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repNombre" className="text-right text-xs">Nombre</Label>
-                        <Input
-                          id="repNombre"
-                          className="col-span-3 h-8"
-                          value={reportData.nombre}
-                          onChange={(e) => handleReportDataChange("nombre", e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repDomicilio" className="text-right text-xs">Domicilio</Label>
-                        <Input
-                          id="repDomicilio"
-                          className="col-span-3 h-8"
-                          value={reportData.domicilio}
-                          onChange={(e) => handleReportDataChange("domicilio", e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repRFC" className="text-right text-xs">R.F.C.</Label>
-                        <Input
-                          id="repRFC"
-                          className="col-span-3 h-8"
-                          value={reportData.rfc}
-                          onChange={(e) => handleReportDataChange("rfc", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 2. Detalle del Pago */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1">2. Detalle del Pago</h4>
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repConcepto" className="text-right text-xs">Concepto</Label>
-                        <Input
-                          id="repConcepto"
-                          className="col-span-3 h-8"
-                          value={reportData.conceptoDetalle}
-                          onChange={(e) => handleReportDataChange("conceptoDetalle", e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-start gap-4">
-                        <Label className="text-right text-xs pt-2">Aplicación</Label>
-                        <div className="col-span-3 grid grid-cols-2 gap-2">
-                          {["Impuestos", "Derechos", "Productos", "Aprovechamientos", "Otros"].map((opcion) => (
-                            <div key={opcion} className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id={`app-${opcion}`}
-                                name="aplicacion"
-                                value={opcion}
-                                checked={reportData.aplicacion === opcion}
-                                onChange={(e) => handleReportDataChange("aplicacion", e.target.value)}
-                                className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
-                              />
-                              <Label htmlFor={`app-${opcion}`} className="text-xs font-normal cursor-pointer">{opcion}</Label>
+                    {/* 4. Liquidación del Impuesto */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1 text-slate-700">4. Liquidación del Impuesto</h4>
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                        {/* Columna Izquierda */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Base del Impuesto</Label>
+                            <Input className="h-8 w-32 text-right" value={reportData.baseImpuesto} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("baseImpuesto", val); }} placeholder="0.00" />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold">Impuesto</Label>
+                            <Input className="h-8 w-32 text-right" value={reportData.impuesto} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("impuesto", val); }} placeholder="0.00" />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Adicional (o Otros)</Label>
+                            <Input className="h-8 w-32 text-right" value={reportData.importeAdicional} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("importeAdicional", val); }} placeholder="0.00" />
+                          </div>
+                        </div>
+                        {/* Columna Derecha */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Recargos</Label>
+                            <Input className="h-8 w-32 text-right" value={reportData.recargos} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("recargos", val); }} placeholder="0.00" />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Multa / Honorarios</Label>
+                            <div className="flex gap-1 w-32">
+                              <Input className="h-8 w-1/2 text-right px-1" value={reportData.multa} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("multa", val); }} placeholder="Mul" title="Multa" />
+                              <Input className="h-8 w-1/2 text-right px-1" value={reportData.honorarios} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("honorarios", val); }} placeholder="Hon" title="Honorarios" />
                             </div>
-                          ))}
+                          </div>
+                          <div className="flex items-center justify-between text-red-600">
+                            <Label className="text-xs">(-) Descuento</Label>
+                            <Input className="h-8 w-32 text-right text-red-600" value={reportData.pagarConDescuento} onChange={(e) => { const val = e.target.value.replace(/[^0-9.]/g, ''); handleReportDataChange("pagarConDescuento", val); }} placeholder="0.00" />
+                          </div>
+                        </div>
+                      </div>
+                      {/* Totales Predial */}
+                      <div className="mt-4 pt-4 border-t grid gap-3">
+                        <div className="flex items-center justify-between bg-slate-100 p-2 rounded">
+                          <Label className="font-bold text-sm">TOTAL A PAGAR</Label>
+                          <span className="font-mono font-bold text-lg">${reportData.totalPagar || "0.00"}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-500">Total en Letra</Label>
+                          <Input className="h-8 bg-slate-50 text-xs" value={reportData.totalLetra} readOnly />
                         </div>
                       </div>
                     </div>
                   </div>
+                )}
 
-                  {/* 3. Importes */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1">3. Importes (Desglose Económico)</h4>
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repCorriente" className="text-right text-xs">Corriente</Label>
-                        <Input
-                          id="repCorriente"
-                          className="col-span-3 h-8"
-                          value={reportData.importeCorriente}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9.]/g, '');
-                            handleReportDataChange("importeCorriente", val)
-                          }}
-                        />
+                {reportType === "otros" && (
+                  <div className="space-y-6 mt-4 p-4 border rounded-lg bg-slate-50 animate-in fade-in slide-in-from-top-2">
+
+                    {/* 1. Datos del Contribuyente */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1">1. Datos del Contribuyente</h4>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repNombre" className="text-right text-xs">Nombre</Label>
+                          <Input
+                            id="repNombre"
+                            className="col-span-3 h-8"
+                            value={reportData.nombre}
+                            onChange={(e) => handleReportDataChange("nombre", e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repDomicilio" className="text-right text-xs">Domicilio</Label>
+                          <Input
+                            id="repDomicilio"
+                            className="col-span-3 h-8"
+                            value={reportData.domicilio}
+                            onChange={(e) => handleReportDataChange("domicilio", e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repRFC" className="text-right text-xs">R.F.C.</Label>
+                          <Input
+                            id="repRFC"
+                            className="col-span-3 h-8"
+                            value={reportData.rfc}
+                            onChange={(e) => handleReportDataChange("rfc", e.target.value)}
+                          />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repAdicional" className="text-right text-xs">Adicional (10%)</Label>
-                        <Input
-                          id="repAdicional"
-                          className="col-span-3 h-8"
-                          value={reportData.importeAdicional}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9.]/g, '');
-                            handleReportDataChange("importeAdicional", val)
-                          }}
-                        />
+                    </div>
+
+                    {/* 2. Detalle del Pago */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1">2. Detalle del Pago</h4>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repConcepto" className="text-right text-xs">Concepto</Label>
+                          <Input
+                            id="repConcepto"
+                            className="col-span-3 h-8"
+                            value={reportData.conceptoDetalle}
+                            onChange={(e) => handleReportDataChange("conceptoDetalle", e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-start gap-4">
+                          <Label className="text-right text-xs pt-2">Aplicación</Label>
+                          <div className="col-span-3 grid grid-cols-2 gap-2">
+                            {["Impuestos", "Derechos", "Productos", "Aprovechamientos", "Otros"].map((opcion) => (
+                              <div key={opcion} className="flex items-center space-x-2">
+                                <input
+                                  type="radio"
+                                  id={`app-${opcion}`}
+                                  name="aplicacion"
+                                  value={opcion}
+                                  checked={reportData.aplicacion === opcion}
+                                  onChange={(e) => handleReportDataChange("aplicacion", e.target.value)}
+                                  className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <Label htmlFor={`app-${opcion}`} className="text-xs font-normal cursor-pointer">{opcion}</Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repSumaTotal" className="text-right text-xs font-bold">Suma Total</Label>
-                        <Input
-                          id="repSumaTotal"
-                          className="col-span-3 h-8 font-bold bg-slate-100 text-slate-700"
-                          value={reportData.sumaTotal}
-                          readOnly
-                          tabIndex={-1}
-                        />
+                    </div>
+
+                    {/* 3. Importes */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1">3. Importes (Desglose Económico)</h4>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repCorriente" className="text-right text-xs">Corriente</Label>
+                          <Input
+                            id="repCorriente"
+                            className="col-span-3 h-8"
+                            value={reportData.importeCorriente}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9.]/g, '');
+                              handleReportDataChange("importeCorriente", val)
+                            }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repAdicional" className="text-right text-xs">Adicional (10%)</Label>
+                          <Input
+                            id="repAdicional"
+                            className="col-span-3 h-8"
+                            value={reportData.importeAdicional}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9.]/g, '');
+                              handleReportDataChange("importeAdicional", val)
+                            }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repSumaTotal" className="text-right text-xs font-bold">Suma Total</Label>
+                          <Input
+                            id="repSumaTotal"
+                            className="col-span-3 h-8 font-bold bg-slate-100 text-slate-700"
+                            value={reportData.sumaTotal}
+                            readOnly
+                            tabIndex={-1}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repTotalLetra" className="text-right text-xs">Total en Letra</Label>
+                          <Input
+                            id="repTotalLetra"
+                            className="col-span-3 h-8 bg-slate-100 text-slate-700"
+                            placeholder="ej. CIENTO DIECINUEVE PESOS 43/100 M.N."
+                            value={reportData.totalLetra}
+                            readOnly
+                            tabIndex={-1}
+                          />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repTotalLetra" className="text-right text-xs">Total en Letra</Label>
-                        <Input
-                          id="repTotalLetra"
-                          className="col-span-3 h-8 bg-slate-100 text-slate-700"
-                          placeholder="ej. CIENTO DIECINUEVE PESOS 43/100 M.N."
-                          value={reportData.totalLetra}
-                          readOnly
-                          tabIndex={-1}
-                        />
+                    </div>
+
+                    {/* 4. Registro e Identificación del Recibo */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1">4. Registro e Identificación del Recibo</h4>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="repFolio" className="text-right text-xs">Folio (Recibo Oficial)</Label>
+                          <Input
+                            id="repFolio"
+                            className="col-span-3 h-8"
+                            value={reportData.folioRecibo}
+                            onChange={(e) => handleReportDataChange("folioRecibo", e.target.value)}
+                          />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label className="text-right text-xs">Fecha de Emisión</Label>
+                          <Popover modal={true}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                type="button"
+                                className={cn(
+                                  "col-span-3 h-8 justify-start text-left font-normal text-xs",
+                                  !reportData.fechaEmision && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                {reportData.fechaEmision ? format(reportData.fechaEmision, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-[60]" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={reportData.fechaEmision}
+                                onSelect={(date) => date && handleReportDataChange("fechaEmision", date)}
+                                initialFocus
+                                locale={es}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* 4. Registro e Identificación del Recibo */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-sm border-b pb-1">4. Registro e Identificación del Recibo</h4>
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="repFolio" className="text-right text-xs">Folio (Recibo Oficial)</Label>
-                        <Input
-                          id="repFolio"
-                          className="col-span-3 h-8"
-                          value={reportData.folioRecibo}
-                          onChange={(e) => handleReportDataChange("folioRecibo", e.target.value)}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label className="text-right text-xs">Fecha de Emisión</Label>
-                        <Popover modal={true}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={"outline"}
-                              type="button"
-                              className={cn(
-                                "col-span-3 h-8 justify-start text-left font-normal text-xs",
-                                !reportData.fechaEmision && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-3 w-3" />
-                              {reportData.fechaEmision ? format(reportData.fechaEmision, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-[60]" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={reportData.fechaEmision}
-                              onSelect={(date) => date && handleReportDataChange("fechaEmision", date)}
-                              initialFocus
-                              locale={es}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-
           </div>
-        </div>
-        <DialogFooter className="p-6 border-t shrink-0 bg-slate-50/50">
-          <Button type="submit" onClick={handleSubmit}>Guardar Ingreso</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="p-6 border-t shrink-0 bg-slate-50/50">
+            <Button type="submit" onClick={handleSubmit}>Guardar Ingreso</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
